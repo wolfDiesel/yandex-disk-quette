@@ -80,8 +80,9 @@ jobs:
               break
             ;; esac
           done
-          echo "path=build/${OUTNAME}" >> "$GITHUB_OUTPUT"
-          ls -la *.AppImage 2>/dev/null || true
+          cp -f "$OUTNAME" "$GITHUB_WORKSPACE/$OUTNAME"
+          echo "path=$OUTNAME" >> "$GITHUB_OUTPUT"
+          ls -la "$GITHUB_WORKSPACE/$OUTNAME"
 
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v4

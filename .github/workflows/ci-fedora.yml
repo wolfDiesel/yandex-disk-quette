@@ -14,15 +14,13 @@ jobs:
       - name: Install dependencies
         run: |
           dnf install -y \
-            gcc-c++ cmake \
-            qt6-qtbase-devel \
-            nlohmann-json-devel
+            git gcc-c++ cmake \
+            qt6-qtbase-devel qt6-qttools-devel qt6-qtwebengine-devel \
+            mesa-libGL-devel libxkbcommon-devel vulkan-headers
 
       - name: Configure
         run: |
-          cmake -B build -S . \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_TESTS=ON
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: cmake --build build -j4
@@ -41,54 +39,34 @@ jobs:
       - name: Install dependencies
         run: |
           dnf install -y \
-            gcc-c++ cmake wget \
-            qt6-qtbase-devel \
-            nlohmann-json-devel
-
-      - name: Install appimagetool
-        run: |
-          wget -q -O /tmp/appimagetool.AppImage \
-            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x /tmp/appimagetool.AppImage
-          mv /tmp/appimagetool.AppImage /usr/local/bin/appimagetool
+            git gcc-c++ cmake wget \
+            qt6-qtbase-devel qt6-qttools-devel qt6-qtwebengine-devel \
+            mesa-libGL-devel libxkbcommon-devel vulkan-headers
 
       - name: Configure
-        run: |
-          cmake -B build -S . \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_TESTS=ON \
-            -DBUILD_APPIMAGE=ON
+        run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: cmake --build build -j4
 
-      - name: Build AppImage
-        run: cmake --build build --target appimage -j4
-
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: appimage-manager-${{ github.ref_name }}
-          path: |
-            build/daemon/appimage-manager-daemon
-            build/gui/appimage-manager-gui
-            build/appimage-manager.AppImage
+          name: Y.Disquette-${{ github.ref_name }}
+          path: build/Y.Disquette
           retention-days: 30
 
   release:
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
-    environment: release
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: appimage-manager-${{ github.ref_name }}
+          name: Y.Disquette-${{ github.ref_name }}
           path: artifacts
 
       - name: Create Release
@@ -96,10 +74,7 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
-          files: |
-            artifacts/daemon/appimage-manager-daemon
-            artifacts/gui/appimage-manager-gui
-            artifacts/appimage-manager.AppImage
+          files: artifacts/Y.Disquette
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

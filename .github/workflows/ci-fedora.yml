@@ -49,11 +49,54 @@ jobs:
       - name: Build
         run: cmake --build build -j4
 
+      - name: Prepare AppDir
+        run: |
+          mkdir -p build/AppDir/usr/bin build/AppDir/usr/share/applications
+          cp build/Y.Disquette build/AppDir/usr/bin/
+          printf '[Desktop Entry]\nType=Application\nName=Y.Disquette\nExec=Y.Disquette\nIcon=y_disquette\nCategories=Network;\n' > build/AppDir/usr/share/applications/y.disquette.desktop
+
+      - name: Download linuxdeploy and Qt plugin
+        run: |
+          cd build
+          wget -q -O linuxdeploy-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q -O linuxdeploy-plugin-qt.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt.AppImage
+
+      - name: Build AppImage
+        id: appimage
+        env:
+          VERSION: ${{ github.ref_name }}
+          APPIMAGE_EXTRACT_AND_RUN: 1
+          NO_STRIP: 1
+        run: |
+          cd build
+          ver=${VERSION#v}
+          export QTDIR=/usr/lib64/qt6
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage \
+            -e AppDir/usr/bin/Y.Disquette \
+            -i /usr/share/icons/hicolor/256x256/apps/application-x-executable.png \
+            --plugin qt || true
+          out="Y.Disquette-${ver}-x86_64.AppImage"
+          for f in *.AppImage; do
+            case "$f" in linuxdeploy*) ;; linuxdeploy-plugin*) ;; *)
+              mv -f "$f" "$out"
+              cp -f "$out" "$GITHUB_WORKSPACE/$out"
+              echo "path=$out" >> "$GITHUB_OUTPUT"
+              exit 0
+            ;; esac
+          done
+          echo "path=" >> "$GITHUB_OUTPUT"
+          exit 1
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Y.Disquette-${{ github.ref_name }}
-          path: build/Y.Disquette
+          path: |
+            build/Y.Disquette
+            ${{ steps.appimage.outputs.path }}
           retention-days: 30
 
   release:
@@ -74,7 +117,9 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
-          files: artifacts/Y.Disquette
+          files: |
+            artifacts/Y.Disquette
+            artifacts/Y.Disquette-*-x86_64.AppImage
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

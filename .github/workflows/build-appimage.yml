@@ -63,9 +63,10 @@ jobs:
         id: build-appimage
         env:
           VERSION: ${{ github.ref_name }}
+          APPIMAGE_EXTRACT_AND_RUN: 1
         run: |
           cd build
-          export VERSION=${VERSION#v}
+          VERSION=${VERSION#v}
           export QTDIR=/usr/lib64/qt6
           ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage \
             -e AppDir/usr/bin/Y.Disquette \
@@ -79,8 +80,7 @@ jobs:
               break
             ;; esac
           done
-          cp -f "$OUTNAME" "$GITHUB_WORKSPACE/$OUTNAME"
-          echo "path=$OUTNAME" >> "$GITHUB_OUTPUT"
+          echo "path=build/${OUTNAME}" >> "$GITHUB_OUTPUT"
           ls -la *.AppImage 2>/dev/null || true
 
       - name: Upload AppImage artifact

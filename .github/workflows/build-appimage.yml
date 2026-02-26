@@ -32,17 +32,20 @@ jobs:
             elif [ -x /usr/bin/$t ]; then
               sudo ln -sf /usr/bin/$t /usr/lib/qt6/bin/$t
             else
-              SRC=$(find /usr -name $t -type f -executable 2>/dev/null | head -1)
+              SRC=$(find /usr -name $t -type f -executable 2>/dev/null | grep -v '/usr/lib/qt6/' | head -1)
               [ -n "$SRC" ] && sudo ln -sf "$SRC" /usr/lib/qt6/bin/$t
             fi
           done
-          if [ -x /usr/lib/x86_64-linux-gnu/qt6/libexec/qwebengine_convert_dict ]; then
-            sudo ln -sf /usr/lib/x86_64-linux-gnu/qt6/libexec/qwebengine_convert_dict /usr/lib/qt6/libexec/
-          elif [ -x /usr/bin/qwebengine_convert_dict ]; then
-            sudo ln -sf /usr/bin/qwebengine_convert_dict /usr/lib/qt6/libexec/
-          else
-            SRC=$(find /usr -name qwebengine_convert_dict -type f -executable 2>/dev/null | head -1)
-            [ -n "$SRC" ] && sudo ln -sf "$SRC" /usr/lib/qt6/libexec/qwebengine_convert_dict
+          DST=/usr/lib/qt6/libexec/qwebengine_convert_dict
+          if [ ! -e "$DST" ]; then
+            if [ -x /usr/lib/x86_64-linux-gnu/qt6/libexec/qwebengine_convert_dict ]; then
+              sudo ln -sf /usr/lib/x86_64-linux-gnu/qt6/libexec/qwebengine_convert_dict "$DST"
+            elif [ -x /usr/bin/qwebengine_convert_dict ]; then
+              sudo ln -sf /usr/bin/qwebengine_convert_dict "$DST"
+            else
+              SRC=$(find /usr -name qwebengine_convert_dict -type f -executable 2>/dev/null | grep -v '/usr/lib/qt6/' | head -1)
+              [ -n "$SRC" ] && sudo ln -sf "$SRC" "$DST"
+            fi
           fi
           echo "--- /usr/lib/qt6/bin ---" && ls -la /usr/lib/qt6/bin/ 2>/dev/null || true
           echo "--- /usr/lib/qt6/libexec ---" && ls -la /usr/lib/qt6/libexec/ 2>/dev/null || true

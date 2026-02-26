@@ -1,0 +1,48 @@
+add_library(y_disquette_core STATIC
+  shared/app_log.hpp
+  shared/app_log.cpp
+  auth/application/itoken_provider.hpp
+  auth/infrastructure/token_store.hpp
+  auth/infrastructure/token_store.cpp
+  auth/infrastructure/oauth_client.hpp
+  auth/infrastructure/oauth_client.cpp
+  auth/infrastructure/yandex_disk_api_client.hpp
+  auth/infrastructure/yandex_disk_api_client.cpp
+  disk_tree/domain/node.hpp
+  disk_tree/domain/quota.hpp
+  disk_tree/application/itree_repository.hpp
+  disk_tree/application/iquota_service.hpp
+  disk_tree/application/load_tree_use_case.hpp
+  disk_tree/application/get_quota_use_case.hpp
+  disk_tree/infrastructure/mock_tree_repository.hpp
+  disk_tree/infrastructure/mock_tree_repository.cpp
+  disk_tree/infrastructure/mock_quota_service.hpp
+  disk_tree/infrastructure/api_tree_repository.hpp
+  disk_tree/infrastructure/api_tree_repository.cpp
+  disk_tree/infrastructure/api_quota_service.hpp
+  disk_tree/infrastructure/api_quota_service.cpp
+  disk_tree/infrastructure/api_parse.hpp
+  disk_tree/infrastructure/api_parse.cpp
+  sync/domain/sync_status.hpp
+  sync/application/isync_service.hpp
+  sync/infrastructure/mock_sync_service.hpp
+  sync/infrastructure/sync_worker.hpp
+  sync/infrastructure/sync_worker.cpp
+  sync/infrastructure/sync_service.hpp
+  sync/infrastructure/sync_service.cpp
+  sync/infrastructure/sync_index.hpp
+  sync/infrastructure/sync_index.cpp
+  sync/infrastructure/disk_resource_client.hpp
+  sync/infrastructure/disk_resource_client.cpp
+  settings/domain/app_settings.hpp
+  settings/application/isettings_store.hpp
+  settings/application/iselected_nodes_store.hpp
+  settings/application/get_settings_use_case.hpp
+  settings/application/save_settings_use_case.hpp
+  settings/application/toggle_node_selection_use_case.hpp
+  settings/infrastructure/mock_settings_store.hpp
+  settings/infrastructure/mock_selected_nodes_store.hpp
+)
+target_include_directories(y_disquette_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(y_disquette_core PUBLIC Qt6::Core Qt6::Network Qt6::Sql)
+add_subdirectory(app)

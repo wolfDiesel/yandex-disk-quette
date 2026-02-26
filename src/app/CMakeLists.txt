@@ -16,4 +16,4 @@ qt_add_translations(Y.Disquette TS_FILES i18n/y_disquette_ru.ts
   QM_FILES_OUTPUT_VARIABLE _qm_files
   QM_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
 )
-add_custom_target(l10n ALL DEPENDS ${_qm_files})
+add_custom_target(l10n ALL DEPENDS Y.Disquette_lrelease)

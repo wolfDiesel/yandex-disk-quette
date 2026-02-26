@@ -60,6 +60,7 @@ jobs:
           chmod +x linuxdeploy-plugin-qt.AppImage
 
       - name: Build AppImage
+        id: build-appimage
         env:
           VERSION: ${{ github.ref_name }}
         run: |
@@ -71,26 +72,27 @@ jobs:
             -i /usr/share/icons/hicolor/256x256/apps/application-x-executable.png \
             --plugin qt || true
           chmod +x *.AppImage 2>/dev/null || true
+          OUTNAME="Y.Disquette-${VERSION}-x86_64.AppImage"
           for f in *.AppImage; do
             case "$f" in linuxdeploy*|linuxdeploy-plugin*) ;; *)
-              mv -f "$f" "Y.Disquette-${VERSION}-x86_64.AppImage"
+              mv -f "$f" "$OUTNAME"
               break
             ;; esac
           done
-          rm -f linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt.AppImage
+          echo "path=build/${OUTNAME}" >> "$GITHUB_OUTPUT"
           ls -la *.AppImage 2>/dev/null || true
 
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v4
         with:
           name: Y.Disquette-${{ github.ref_name }}-x86_64.AppImage
-          path: build/*.AppImage
+          path: ${{ steps.build-appimage.outputs.path }}
           if-no-files-found: error
 
       - name: Create Release and upload AppImage
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: build/*.AppImage
+          files: ${{ steps.build-appimage.outputs.path }}
           fail_on_unmatched_files: false
           generate_release_notes: true

@@ -66,6 +66,7 @@ jobs:
           cd build
           export VERSION=${VERSION#v}
           export QTDIR=/usr/lib64/qt6
+          export LDAI_OUTPUT="Y.Disquette-${VERSION}-x86_64.AppImage"
           ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage \
             -e AppDir/usr/bin/Y.Disquette \
             -i /usr/share/icons/hicolor/256x256/apps/application-x-executable.png \

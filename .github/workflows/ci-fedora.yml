@@ -59,9 +59,19 @@ jobs:
           mkdir -p build/AppDir/usr/bin
           mkdir -p build/AppDir/usr/share/applications
           mkdir -p build/AppDir/usr/share/icons/hicolor/256x256/apps
+          mkdir -p build/AppDir/apprun-hooks
           cp build/Y.Disquette build/AppDir/usr/bin/
           convert res/icon.png -resize 256x256 build/AppDir/usr/share/icons/hicolor/256x256/apps/y_disquette.png
           printf '[Desktop Entry]\nType=Application\nName=Y.Disquette\nExec=Y.Disquette\nIcon=y_disquette\nCategories=Network;\n' > build/AppDir/usr/share/applications/y.disquette.desktop
+          printf '%s\n' \
+            '#!/bin/sh' \
+            'if [ -z "$QT_PLUGIN_PATH" ]; then' \
+            '  export QT_PLUGIN_PATH="/usr/lib64/qt6/plugins:/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins"' \
+            'else' \
+            '  export QT_PLUGIN_PATH="/usr/lib64/qt6/plugins:/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins:$QT_PLUGIN_PATH"' \
+            'fi' \
+            > build/AppDir/apprun-hooks/01-system-qt-plugins.sh
+          chmod +x build/AppDir/apprun-hooks/01-system-qt-plugins.sh
 
       - name: Download linuxdeploy and Qt plugin
         run: |
@@ -87,7 +97,9 @@ jobs:
             -e AppDir/usr/bin/Y.Disquette \
             -d AppDir/usr/share/applications/y.disquette.desktop \
             -i AppDir/usr/share/icons/hicolor/256x256/apps/y_disquette.png \
-            --plugin qt --output appimage
+            --plugin qt
+          rm -rf AppDir/usr/plugins/styles AppDir/usr/lib/plugins/styles 2>/dev/null || true
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
           test -f "Y.Disquette-${ver}-x86_64.AppImage" || (echo "AppImage was not created" && exit 1)
           echo "name=Y.Disquette-${ver}-x86_64.AppImage" >> "$GITHUB_OUTPUT"
           cp -f "Y.Disquette-${ver}-x86_64.AppImage" "$GITHUB_WORKSPACE/"

@@ -29,6 +29,7 @@
 #include <QFile>
 #include <QMutex>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 static void loadConfigIntoApp(ydisquette::CompositionRoot& root, ydisquette::MainWindow* mainWindow,
@@ -125,6 +126,15 @@ static QIcon loadAppIcon() {
 
 int main(int argc, char* argv[]) {
     setvbuf(stderr, nullptr, _IONBF, 0);
+
+    if (std::getenv("APPIMAGE")) {
+        const char* e = std::getenv("QT_PLUGIN_PATH");
+        char buf[2048];
+        std::snprintf(buf, sizeof(buf),
+                     "/usr/lib64/qt6/plugins:/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins%s%s",
+                     e && *e ? ":" : "", e && *e ? e : "");
+        setenv("QT_PLUGIN_PATH", buf, 1);
+    }
 
     ydisquette::setLogLevel(parseLogLevel(argc, argv));
 

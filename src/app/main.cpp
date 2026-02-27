@@ -155,11 +155,13 @@ int main(int argc, char* argv[]) {
     ydisquette::getBuildTimeOAuthCredentials(&clientId, &clientSecret, &redirectUri);
     const QString envId = QString::fromUtf8(qgetenv("YDISQUETTE_CLIENT_ID"));
     const QString envSecret = QString::fromUtf8(qgetenv("YDISQUETTE_CLIENT_SECRET"));
-    const QString envRedirect = QString::fromUtf8(qgetenv("YDISQUETTE_REDIRECT_URI"));
     if (!envId.isEmpty()) clientId = envId;
     if (!envSecret.isEmpty()) clientSecret = envSecret;
-    if (!envRedirect.isEmpty()) redirectUri = envRedirect;
     const bool hasCredentials = !clientId.isEmpty() && !clientSecret.isEmpty() && !redirectUri.isEmpty();
+    if (!hasCredentials) {
+        ydisquette::log(ydisquette::LogLevel::Normal,
+                        QStringLiteral(\"[Auth] NO CREDENTIALS: client_id/secret/redirect are empty; login window will not be shown.\")); 
+    }
 
     if (!root.tokenProvider().getAccessToken() && hasCredentials) {
         auto* handler = new ydisquette::auth::OAuthCallbackSchemeHandler(&app);

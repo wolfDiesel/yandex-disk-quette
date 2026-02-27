@@ -160,7 +160,7 @@ int main(int argc, char* argv[]) {
     const bool hasCredentials = !clientId.isEmpty() && !clientSecret.isEmpty() && !redirectUri.isEmpty();
     if (!hasCredentials) {
         ydisquette::log(ydisquette::LogLevel::Normal,
-                        QStringLiteral(\"[Auth] NO CREDENTIALS: client_id/secret/redirect are empty; login window will not be shown.\")); 
+                        "[Auth] NO CREDENTIALS: client_id/secret/redirect are empty; login window will not be shown.");
     }
 
     if (!root.tokenProvider().getAccessToken() && hasCredentials) {

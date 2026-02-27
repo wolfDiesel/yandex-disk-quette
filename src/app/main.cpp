@@ -167,6 +167,7 @@ int main(int argc, char* argv[]) {
     if (existingToken) {
         ydisquette::log(ydisquette::LogLevel::Normal,
                         "[Auth] Existing access token found on startup, skipping login UI.");
+        mainWindow.show();
     } else if (hasCredentials) {
         ydisquette::log(ydisquette::LogLevel::Normal,
                         "[Auth] Credentials present and no token, showing login UI.");
@@ -183,6 +184,8 @@ int main(int argc, char* argv[]) {
             saveConfigFromApp(root, &mainWindow, mainContent);
             login->close();
             mainWindow.show();
+            mainWindow.raise();
+            mainWindow.activateWindow();
         });
         QObject::connect(login, &ydisquette::auth::LoginWidget::loginFailed, [login](const QString& err) {
             QMessageBox::warning(login, QObject::tr("Sign-in error"), err);

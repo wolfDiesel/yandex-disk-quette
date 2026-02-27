@@ -64,11 +64,15 @@ static QString openTempBase() {
     return QDir::temp().filePath(QStringLiteral("Y.Disquette.open"));
 }
 
-static QIcon themeIcon(QWidget* w, const char* name, QStyle::StandardPixmap fallback) {
-    QIcon icon = QIcon::fromTheme(QString::fromUtf8(name));
-    if (icon.isNull() && w)
-        icon = w->style()->standardIcon(fallback);
-    return icon;
+static QIcon themeIcon(QWidget* w, std::initializer_list<const char*> themeNames, QStyle::StandardPixmap fallback) {
+    for (const char* name : themeNames) {
+        QIcon icon = QIcon::fromTheme(QString::fromUtf8(name));
+        if (!icon.isNull())
+            return icon;
+    }
+    if (w)
+        return w->style()->standardIcon(fallback);
+    return QIcon();
 }
 
 QString MainContentWidget::formatBytes(int64_t bytes) {
@@ -253,7 +257,7 @@ void MainContentWidget::appendChildrenToRow(QStandardItem* nameItem, const std::
 void MainContentWidget::appendChildrenToRowFromData(QStandardItem* nameItem,
     const std::vector<std::shared_ptr<disk_tree::Node>>& children) {
     std::vector<std::string> selectedPaths = root_->getSelectedPaths();
-    QIcon dirIcon = themeIcon(this, "folder", QStyle::SP_DirIcon);
+    QIcon dirIcon = themeIcon(this, {"folder", "folder-open", "inode-directory"}, QStyle::SP_DirIcon);
     for (const auto& c : children) {
         if (!c->isDir()) continue;
         QString name = QString::fromStdString(c->name.empty() ? c->path : c->name);
@@ -291,7 +295,7 @@ void MainContentWidget::loadAndDisplay(const std::vector<std::string>& ensureSel
     treeModel_->removeRows(0, treeModel_->rowCount());
     if (rootNode) {
         QString rootName = rootNode->path == "/" ? tr("Disk") : QString::fromStdString(rootNode->path);
-        QIcon rootIcon = themeIcon(this, "drive-harddisk", QStyle::SP_DriveHDIcon);
+        QIcon rootIcon = themeIcon(this, {"drive-harddisk", "drive-removable-media", "computer"}, QStyle::SP_DriveHDIcon);
         QStandardItem* nameCol = new QStandardItem(rootIcon, rootName);
         nameCol->setData(QString::fromStdString(rootNode->path), PathRole);
         nameCol->setData(true, IsDirRole);
@@ -464,6 +468,15 @@ void MainContentWidget::openSettings() {
     refreshTimer_->setInterval(refreshSec * 1000);
     if (cloudCheckTimerStarted_)
         cloudCheckTimer_->setInterval(cloudSec * 1000);
+    if (!s.syncPath.empty()) {
+        loadAndDisplay();
+        setupSyncWatcher();
+        if (!cloudCheckTimerStarted_) {
+            cloudCheckTimerStarted_ = true;
+            QTimer::singleShot(kCloudCheckFirstRunDelayMs, this, &MainContentWidget::onCloudCheckTimer);
+            cloudCheckTimer_->start((cloudSec >= 5 && cloudSec <= 3600 ? cloudSec : 30) * 1000);
+        }
+    }
 }
 
 void MainContentWidget::onSyncClicked() {
@@ -566,8 +579,8 @@ void MainContentWidget::onTreeSelectionChanged() {
 
 void MainContentWidget::setContentsFromNodes(const std::vector<std::shared_ptr<disk_tree::Node>>& children) {
     contentsModel_->removeRows(0, contentsModel_->rowCount());
-    QIcon dirIcon = themeIcon(this, "folder", QStyle::SP_DirIcon);
-    QIcon fileIcon = themeIcon(this, "document", QStyle::SP_FileIcon);
+    QIcon dirIcon = themeIcon(this, {"folder", "folder-open", "inode-directory"}, QStyle::SP_DirIcon);
+    QIcon fileIcon = themeIcon(this, {"document", "text-x-generic"}, QStyle::SP_FileIcon);
     for (const auto& c : children) {
         QString name = QString::fromStdString(c->name.empty() ? c->path : c->name);
         QStandardItem* item = new QStandardItem(c->isDir() ? dirIcon : fileIcon, name);
@@ -773,6 +786,14 @@ void MainContentWidget::restoreState(const QByteArray& state) {
 
 void MainContentWidget::showEvent(QShowEvent* event) {
     QWidget::showEvent(event);
+    std::string syncPath = root_->getSettingsUseCase().run().syncPath;
+    if (syncPath.empty()) {
+        if (!syncFolderPromptShown_) {
+            syncFolderPromptShown_ = true;
+            QTimer::singleShot(400, this, [this]() { openSettings(); });
+        }
+        return;
+    }
     QTimer::singleShot(0, this, [this]() { loadAndDisplay(); });
     QTimer::singleShot(500, this, [this]() { setupSyncWatcher(); });
     if (!cloudCheckTimerStarted_) {
@@ -780,10 +801,6 @@ void MainContentWidget::showEvent(QShowEvent* event) {
         QTimer::singleShot(kCloudCheckFirstRunDelayMs, this, &MainContentWidget::onCloudCheckTimer);
         int cloudSec = root_->getSettingsUseCase().run().cloudCheckIntervalSec;
         cloudCheckTimer_->start((cloudSec >= 5 && cloudSec <= 3600 ? cloudSec : 30) * 1000);
-    }
-    if (!syncFolderPromptShown_ && root_->getSettingsUseCase().run().syncPath.empty()) {
-        syncFolderPromptShown_ = true;
-        QTimer::singleShot(400, this, [this]() { openSettings(); });
     }
 }
 

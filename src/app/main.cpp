@@ -171,6 +171,8 @@ int main(int argc, char* argv[]) {
     } else if (hasCredentials) {
         ydisquette::log(ydisquette::LogLevel::Normal,
                         "[Auth] Credentials present and no token, showing login UI.");
+        mainWindow.show();
+        mainWindow.hide();
         auto* handler = new ydisquette::auth::OAuthCallbackSchemeHandler(&app);
         QWebEngineProfile::defaultProfile()->installUrlSchemeHandler(
             QByteArrayLiteral("ydisquette"), handler);

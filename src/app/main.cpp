@@ -163,7 +163,13 @@ int main(int argc, char* argv[]) {
                         "[Auth] NO CREDENTIALS: client_id/secret/redirect are empty; login window will not be shown.");
     }
 
-    if (!root.tokenProvider().getAccessToken() && hasCredentials) {
+    const auto existingToken = root.tokenProvider().getAccessToken();
+    if (existingToken) {
+        ydisquette::log(ydisquette::LogLevel::Normal,
+                        "[Auth] Existing access token found on startup, skipping login UI.");
+    } else if (hasCredentials) {
+        ydisquette::log(ydisquette::LogLevel::Normal,
+                        "[Auth] Credentials present and no token, showing login UI.");
         auto* handler = new ydisquette::auth::OAuthCallbackSchemeHandler(&app);
         QWebEngineProfile::defaultProfile()->installUrlSchemeHandler(
             QByteArrayLiteral("ydisquette"), handler);
@@ -184,6 +190,10 @@ int main(int argc, char* argv[]) {
         login->startLogin();
         login->show();
     } else {
+        if (!hasCredentials) {
+            ydisquette::log(ydisquette::LogLevel::Normal,
+                            "[Auth] No credentials configured, starting without login UI.");
+        }
         mainWindow.show();
     }
 

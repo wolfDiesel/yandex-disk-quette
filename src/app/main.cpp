@@ -14,6 +14,7 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QTimer>
 #include <QTranslator>
 #include <QLocale>
 #include <QWebEngineProfile>
@@ -185,7 +186,10 @@ int main(int argc, char* argv[]) {
             mainWindow.show();
             mainWindow.raise();
             mainWindow.activateWindow();
-            login->close();
+            QTimer::singleShot(0, &app, [login]() {
+                login->hide();
+                login->deleteLater();
+            });
         });
         QObject::connect(login, &ydisquette::auth::LoginWidget::loginFailed, [login](const QString& err) {
             QMessageBox::warning(login, QObject::tr("Sign-in error"), err);

@@ -34,14 +34,12 @@ QString CompositionRoot::getSyncIndexDbPath() const {
 }
 
 bool CompositionRoot::refreshToken() {
-    QString clientId = QString::fromUtf8(qgetenv("YDISQUETTE_CLIENT_ID"));
-    QString clientSecret = QString::fromUtf8(qgetenv("YDISQUETTE_CLIENT_SECRET"));
-    if (clientId.isEmpty() || clientSecret.isEmpty()) {
-        QString buildId, buildSecret;
-        getBuildTimeOAuthCredentials(&buildId, &buildSecret, nullptr);
-        if (clientId.isEmpty()) clientId = buildId;
-        if (clientSecret.isEmpty()) clientSecret = buildSecret;
-    }
+    QString clientId, clientSecret, redirectUri;
+    getBuildTimeOAuthCredentials(&clientId, &clientSecret, &redirectUri);
+    const QString envId = QString::fromUtf8(qgetenv("YDISQUETTE_CLIENT_ID"));
+    const QString envSecret = QString::fromUtf8(qgetenv("YDISQUETTE_CLIENT_SECRET"));
+    if (!envId.isEmpty()) clientId = envId;
+    if (!envSecret.isEmpty()) clientSecret = envSecret;
     if (clientId.isEmpty() || clientSecret.isEmpty())
         return false;
     return oauthClient_->refresh(clientId, clientSecret);

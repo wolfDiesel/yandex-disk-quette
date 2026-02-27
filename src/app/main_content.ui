@@ -56,7 +56,7 @@
       <bool>true</bool>
      </property>
      <property name="text">
-      <string>To sign in: set environment variables YDISQUETTE_CLIENT_ID, YDISQUETTE_CLIENT_SECRET, YDISQUETTE_REDIRECT_URI and restart the app.</string>
+      <string>To sign in, please use the built-in login window (your browser will open automatically if needed).</string>
      </property>
     </widget>
    </item>

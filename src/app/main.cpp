@@ -151,16 +151,14 @@ int main(int argc, char* argv[]) {
     mainContent->setStopSyncAction(stopSyncAction);
     loadConfigIntoApp(root, &mainWindow, mainContent);
 
-    QString clientId = QString::fromUtf8(qgetenv("YDISQUETTE_CLIENT_ID"));
-    QString clientSecret = QString::fromUtf8(qgetenv("YDISQUETTE_CLIENT_SECRET"));
-    QString redirectUri = QString::fromUtf8(qgetenv("YDISQUETTE_REDIRECT_URI"));
-    if (clientId.isEmpty() || clientSecret.isEmpty() || redirectUri.isEmpty()) {
-        QString buildId, buildSecret, buildRedirect;
-        ydisquette::getBuildTimeOAuthCredentials(&buildId, &buildSecret, &buildRedirect);
-        if (clientId.isEmpty()) clientId = buildId;
-        if (clientSecret.isEmpty()) clientSecret = buildSecret;
-        if (redirectUri.isEmpty()) redirectUri = buildRedirect;
-    }
+    QString clientId, clientSecret, redirectUri;
+    ydisquette::getBuildTimeOAuthCredentials(&clientId, &clientSecret, &redirectUri);
+    const QString envId = QString::fromUtf8(qgetenv("YDISQUETTE_CLIENT_ID"));
+    const QString envSecret = QString::fromUtf8(qgetenv("YDISQUETTE_CLIENT_SECRET"));
+    const QString envRedirect = QString::fromUtf8(qgetenv("YDISQUETTE_REDIRECT_URI"));
+    if (!envId.isEmpty()) clientId = envId;
+    if (!envSecret.isEmpty()) clientSecret = envSecret;
+    if (!envRedirect.isEmpty()) redirectUri = envRedirect;
     const bool hasCredentials = !clientId.isEmpty() && !clientSecret.isEmpty() && !redirectUri.isEmpty();
 
     if (!root.tokenProvider().getAccessToken() && hasCredentials) {

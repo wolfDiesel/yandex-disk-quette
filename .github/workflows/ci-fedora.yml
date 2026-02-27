@@ -14,6 +14,8 @@ jobs:
 
       - name: Install dependencies
         run: |
+          dnf install -y dnf-plugins-core
+          dnf config-manager --set-disabled fedora-cisco-openh264 || true
           dnf install -y \
             git gcc-c++ cmake \
             qt6-qtbase-devel qt6-qttools-devel qt6-qtwebengine-devel \
@@ -37,6 +39,8 @@ jobs:
 
       - name: Install dependencies
         run: |
+          dnf install -y dnf-plugins-core
+          dnf config-manager --set-disabled fedora-cisco-openh264 || true
           dnf install -y \
             git gcc-c++ cmake python3 wget file ImageMagick \
             qt6-qtbase-devel qt6-qttools-devel qt6-qtwebengine-devel \

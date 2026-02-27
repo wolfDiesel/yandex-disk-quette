@@ -172,6 +172,9 @@ int main(int argc, char* argv[]) {
     } else if (hasCredentials) {
         ydisquette::log(ydisquette::LogLevel::Normal,
                         "[Auth] Credentials present and no token, showing login UI.");
+        mainContent->setProperty("skipFirstShow", true);
+        mainWindow.show();
+        mainWindow.hide();
         auto* handler = new ydisquette::auth::OAuthCallbackSchemeHandler(&app);
         QWebEngineProfile::defaultProfile()->installUrlSchemeHandler(
             QByteArrayLiteral("ydisquette"), handler);
@@ -186,7 +189,7 @@ int main(int argc, char* argv[]) {
             mainWindow.show();
             mainWindow.raise();
             mainWindow.activateWindow();
-            QTimer::singleShot(0, &app, [login]() {
+            QTimer::singleShot(300, &app, [login]() {
                 login->hide();
                 login->deleteLater();
             });

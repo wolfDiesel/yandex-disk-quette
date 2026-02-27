@@ -786,6 +786,10 @@ void MainContentWidget::restoreState(const QByteArray& state) {
 
 void MainContentWidget::showEvent(QShowEvent* event) {
     QWidget::showEvent(event);
+    if (property("skipFirstShow").toBool()) {
+        setProperty("skipFirstShow", false);
+        return;
+    }
     std::string syncPath = root_->getSettingsUseCase().run().syncPath;
     if (syncPath.empty()) {
         if (!syncFolderPromptShown_) {

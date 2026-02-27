@@ -100,6 +100,7 @@ private:
     bool skipNextIdleRefresh_ = false;
     QAction* stopSyncAction_ = nullptr;
     QAction* syncAction_ = nullptr;
+    bool syncFolderPromptShown_ = false;
 };
 
 }  // namespace ydisquette

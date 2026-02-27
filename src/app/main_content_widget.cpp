@@ -781,6 +781,10 @@ void MainContentWidget::showEvent(QShowEvent* event) {
         int cloudSec = root_->getSettingsUseCase().run().cloudCheckIntervalSec;
         cloudCheckTimer_->start((cloudSec >= 5 && cloudSec <= 3600 ? cloudSec : 30) * 1000);
     }
+    if (!syncFolderPromptShown_ && root_->getSettingsUseCase().run().syncPath.empty()) {
+        syncFolderPromptShown_ = true;
+        QTimer::singleShot(400, this, [this]() { openSettings(); });
+    }
 }
 
 }  // namespace ydisquette

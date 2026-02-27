@@ -182,10 +182,10 @@ int main(int argc, char* argv[]) {
                          login, &ydisquette::auth::LoginWidget::onCodeReceived);
         QObject::connect(login, &ydisquette::auth::LoginWidget::loggedIn, [&]() {
             saveConfigFromApp(root, &mainWindow, mainContent);
-            login->close();
             mainWindow.show();
             mainWindow.raise();
             mainWindow.activateWindow();
+            login->close();
         });
         QObject::connect(login, &ydisquette::auth::LoginWidget::loginFailed, [login](const QString& err) {
             QMessageBox::warning(login, QObject::tr("Sign-in error"), err);

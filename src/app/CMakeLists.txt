@@ -1,4 +1,15 @@
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+execute_process(
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/obfuscate_oauth.py ${CMAKE_CURRENT_BINARY_DIR}/oauth_build_config.h
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    RESULT_VARIABLE _oauth_result
+)
+if(NOT _oauth_result EQUAL 0)
+    message(FATAL_ERROR "obfuscate_oauth.py failed")
+endif()
+
 add_executable(Y.Disquette main.cpp composition_root.cpp main_content_widget.cpp settings_dialog.cpp json_config.cpp main_content.ui settings_dialog.ui ../auth/ui/login_widget.cpp ../auth/infrastructure/oauth_callback_scheme_handler.cpp)
+target_include_directories(Y.Disquette PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(Y.Disquette PRIVATE
   y_disquette_core
   Qt6::Core

@@ -1,4 +1,5 @@
 #include "composition_root.hpp"
+#include "oauth_credentials.hpp"
 #include "json_config.hpp"
 #include <QFileInfo>
 #include <QNetworkAccessManager>
@@ -35,6 +36,12 @@ QString CompositionRoot::getSyncIndexDbPath() const {
 bool CompositionRoot::refreshToken() {
     QString clientId = QString::fromUtf8(qgetenv("YDISQUETTE_CLIENT_ID"));
     QString clientSecret = QString::fromUtf8(qgetenv("YDISQUETTE_CLIENT_SECRET"));
+    if (clientId.isEmpty() || clientSecret.isEmpty()) {
+        QString buildId, buildSecret;
+        getBuildTimeOAuthCredentials(&buildId, &buildSecret, nullptr);
+        if (clientId.isEmpty()) clientId = buildId;
+        if (clientSecret.isEmpty()) clientSecret = buildSecret;
+    }
     if (clientId.isEmpty() || clientSecret.isEmpty())
         return false;
     return oauthClient_->refresh(clientId, clientSecret);

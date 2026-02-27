@@ -38,11 +38,14 @@ jobs:
       - name: Install dependencies
         run: |
           dnf install -y \
-            git gcc-c++ cmake wget file ImageMagick \
+            git gcc-c++ cmake python3 wget file ImageMagick \
             qt6-qtbase-devel qt6-qttools-devel qt6-qtwebengine-devel \
             mesa-libGL-devel libxkbcommon-devel vulkan-headers
 
       - name: Configure and build
+        env:
+          YDISQUETTE_CLIENT_ID: ${{ secrets.YDISQUETTE_CLIENT_ID }}
+          YDISQUETTE_CLIENT_SECRET: ${{ secrets.YDISQUETTE_CLIENT_SECRET }}
         run: |
           cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
           cmake --build build -j4

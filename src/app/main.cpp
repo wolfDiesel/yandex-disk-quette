@@ -1,5 +1,6 @@
 #include "composition_root.hpp"
 #include "main_content_widget.hpp"
+#include "oauth_credentials.hpp"
 #include "auth/ui/login_widget.hpp"
 #include "auth/infrastructure/oauth_callback_scheme_handler.hpp"
 #include "auth/infrastructure/token_store.hpp"
@@ -150,9 +151,16 @@ int main(int argc, char* argv[]) {
     mainContent->setStopSyncAction(stopSyncAction);
     loadConfigIntoApp(root, &mainWindow, mainContent);
 
-    const QString clientId = QString::fromUtf8(qgetenv("YDISQUETTE_CLIENT_ID"));
-    const QString clientSecret = QString::fromUtf8(qgetenv("YDISQUETTE_CLIENT_SECRET"));
-    const QString redirectUri = QString::fromUtf8(qgetenv("YDISQUETTE_REDIRECT_URI"));
+    QString clientId = QString::fromUtf8(qgetenv("YDISQUETTE_CLIENT_ID"));
+    QString clientSecret = QString::fromUtf8(qgetenv("YDISQUETTE_CLIENT_SECRET"));
+    QString redirectUri = QString::fromUtf8(qgetenv("YDISQUETTE_REDIRECT_URI"));
+    if (clientId.isEmpty() || clientSecret.isEmpty() || redirectUri.isEmpty()) {
+        QString buildId, buildSecret, buildRedirect;
+        ydisquette::getBuildTimeOAuthCredentials(&buildId, &buildSecret, &buildRedirect);
+        if (clientId.isEmpty()) clientId = buildId;
+        if (clientSecret.isEmpty()) clientSecret = buildSecret;
+        if (redirectUri.isEmpty()) redirectUri = buildRedirect;
+    }
     const bool hasCredentials = !clientId.isEmpty() && !clientSecret.isEmpty() && !redirectUri.isEmpty();
 
     if (!root.tokenProvider().getAccessToken() && hasCredentials) {

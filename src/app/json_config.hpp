@@ -15,6 +15,8 @@ struct JsonConfig {
     int maxRetries = 3;
     int cloudCheckIntervalSec = 30;
     int refreshIntervalSec = 60;
+    bool hideToTray = true;
+    bool closeToTray = true;
     QStringList selectedNodePaths;
 
     static QString configPath();

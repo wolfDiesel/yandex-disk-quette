@@ -46,6 +46,8 @@ static JsonConfig loadFromFile(const QString& path) {
     c.cloudCheckIntervalSec = (cc >= 5 && cc <= 3600) ? cc : 30;
     int rr = o.value(QStringLiteral("refresh_interval_sec")).toInt(60);
     c.refreshIntervalSec = (rr >= 5 && rr <= 3600) ? rr : 60;
+    c.hideToTray = o.value(QStringLiteral("hide_to_tray")).toBool(true);
+    c.closeToTray = o.value(QStringLiteral("close_to_tray")).toBool(true);
     for (const QJsonValue& v : o.value(QStringLiteral("selected_node_paths")).toArray())
         c.selectedNodePaths.append(v.toString());
     return c;
@@ -66,6 +68,8 @@ static bool saveToFile(const QString& path, const JsonConfig& c) {
     o.insert(QStringLiteral("sync_max_retries"), c.maxRetries);
     o.insert(QStringLiteral("cloud_check_interval_sec"), c.cloudCheckIntervalSec);
     o.insert(QStringLiteral("refresh_interval_sec"), c.refreshIntervalSec);
+    o.insert(QStringLiteral("hide_to_tray"), c.hideToTray);
+    o.insert(QStringLiteral("close_to_tray"), c.closeToTray);
     QJsonArray arr;
     for (const QString& p : c.selectedNodePaths)
         arr.append(p);

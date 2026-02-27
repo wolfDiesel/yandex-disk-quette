@@ -52,6 +52,7 @@ void LoginWidget::startLogin() {
     q.addQueryItem(QStringLiteral("scope"), QStringLiteral("cloud_api:disk.read cloud_api:disk.write cloud_api:disk.info"));
     url.setQuery(q);
     d_->statusLabel->setText(tr("Откройте страницу входа в браузере ниже."));
+    d_->statusLabel->show();
     d_->webView->setUrl(url);
 }
 

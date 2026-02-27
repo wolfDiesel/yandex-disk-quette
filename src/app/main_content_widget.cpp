@@ -104,8 +104,6 @@ MainContentWidget::MainContentWidget(CompositionRoot& root, QWidget* parent)
     ui_->treeView_->setIndentation(14);
     ui_->treeView_->setAnimated(true);
     ui_->treeView_->setUniformRowHeights(true);
-    ui_->treeView_->setStyleSheet(
-        QStringLiteral("QTreeView { padding: 2px; } QTreeView::item { height: 22px; padding: 2px 4px; }"));
     ui_->treeView_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
     ui_->treeView_->header()->setSectionResizeMode(1, QHeaderView::Fixed);
     ui_->treeView_->installEventFilter(this);
@@ -154,9 +152,6 @@ MainContentWidget::MainContentWidget(CompositionRoot& root, QWidget* parent)
     refreshTimer_->start((refreshSec >= 5 && refreshSec <= 3600 ? refreshSec : 60) * 1000);
     connect(cloudCheckTimer_, &QTimer::timeout, this, &MainContentWidget::onCloudCheckTimer);
     ui_->treeLabel_->hide();
-    ui_->quotaProgressBar_->setStyleSheet(
-        QStringLiteral("QProgressBar { border: 1px solid #a0a0a0; border-radius: 4px; background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 #e8e8e8, stop:1 #d0d0d0); min-height: 10px; }"
-                       "QProgressBar::chunk { background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 #5cb85c, stop:0.5 #4caf50, stop:1 #3d8b40); border-radius: 3px; border: 1px solid rgba(0,0,0,0.1); }"));
     ui_->quotaProgressBar_->setMinimum(0);
     ui_->quotaProgressBar_->setMaximum(100);
     ui_->connectionIndicator_->setStyleSheet(QStringLiteral("background-color: #9e9e9e; border-radius: 7px;"));
@@ -284,7 +279,11 @@ void MainContentWidget::loadAndDisplay() {
 void MainContentWidget::loadAndDisplay(const std::vector<std::string>& ensureSelectedPaths) {
     if (!root_) return;
     bool hasToken = root_->tokenProvider().getAccessToken().has_value();
-    ui_->loginHintLabel_->setVisible(!hasToken);
+    if (hasToken)
+        ui_->loginHintLabel_->setText(tr("Вы вошли в аккаунт."));
+    else
+        ui_->loginHintLabel_->setText(tr("To sign in, please use the built-in login window (your browser will open automatically if needed)."));
+    ui_->loginHintLabel_->setVisible(true);
 
     ++loadGeneration_;
     const quint64 gen = loadGeneration_;

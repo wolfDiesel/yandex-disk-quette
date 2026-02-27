@@ -1,5 +1,6 @@
 #include "composition_root.hpp"
 #include "main_content_widget.hpp"
+#include "main_window.hpp"
 #include "oauth_credentials.hpp"
 #include "auth/ui/login_widget.hpp"
 #include "auth/infrastructure/oauth_callback_scheme_handler.hpp"
@@ -10,10 +11,13 @@
 #include "shared/app_log.hpp"
 #include <QAction>
 #include <QApplication>
-#include <QMainWindow>
+#include <QIcon>
+#include <QImage>
+#include <QPixmap>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QStyleFactory>
 #include <QTimer>
 #include <QTranslator>
 #include <QLocale>
@@ -27,7 +31,7 @@
 #include <cstdio>
 #include <cstring>
 
-static void loadConfigIntoApp(ydisquette::CompositionRoot& root, QMainWindow* mainWindow,
+static void loadConfigIntoApp(ydisquette::CompositionRoot& root, ydisquette::MainWindow* mainWindow,
                               ydisquette::MainContentWidget* mainContent) {
     ydisquette::JsonConfig c = ydisquette::JsonConfig::load();
     if (!c.accessToken.isEmpty() && !c.refreshToken.isEmpty())
@@ -42,6 +46,8 @@ static void loadConfigIntoApp(ydisquette::CompositionRoot& root, QMainWindow* ma
         if (c.maxRetries >= 1 && c.maxRetries <= 100) s.maxRetries = c.maxRetries;
         if (c.cloudCheckIntervalSec >= 5 && c.cloudCheckIntervalSec <= 3600) s.cloudCheckIntervalSec = c.cloudCheckIntervalSec;
         if (c.refreshIntervalSec >= 5 && c.refreshIntervalSec <= 3600) s.refreshIntervalSec = c.refreshIntervalSec;
+        s.hideToTray = c.hideToTray;
+        s.closeToTray = c.closeToTray;
         root.saveSettingsUseCase().run(s);
     }
     if (!c.selectedNodePaths.isEmpty()) {
@@ -55,7 +61,7 @@ static void loadConfigIntoApp(ydisquette::CompositionRoot& root, QMainWindow* ma
     }
 }
 
-static bool saveConfigFromApp(ydisquette::CompositionRoot& root, QMainWindow* mainWindow,
+static bool saveConfigFromApp(ydisquette::CompositionRoot& root, ydisquette::MainWindow* mainWindow,
                               ydisquette::MainContentWidget* mainContent) {
     ydisquette::JsonConfig c = ydisquette::JsonConfig::load();
     auto at = root.tokenStore().getAccessToken();
@@ -70,6 +76,8 @@ static bool saveConfigFromApp(ydisquette::CompositionRoot& root, QMainWindow* ma
     c.maxRetries = s.maxRetries;
     c.cloudCheckIntervalSec = s.cloudCheckIntervalSec;
     c.refreshIntervalSec = s.refreshIntervalSec;
+    c.hideToTray = s.hideToTray;
+    c.closeToTray = s.closeToTray;
     c.selectedNodePaths.clear();
     for (const std::string& p : root.getSelectedPaths())
         c.selectedNodePaths.append(QString::fromStdString(ydisquette::normalizeCloudPath(p)));
@@ -99,6 +107,22 @@ static ydisquette::LogLevel parseLogLevel(int argc, char* argv[]) {
     return ydisquette::LogLevel::Normal;
 }
 
+static QIcon loadAppIcon() {
+    QIcon icon;
+    QImage img(QStringLiteral(":/app_icon.png"));
+    if (img.isNull()) return icon;
+    img = img.convertToFormat(QImage::Format_ARGB32);
+    const QList<int> sizes = {16, 22, 24, 32, 48, 64, 128};
+    for (int s : sizes) {
+        QPixmap px = QPixmap::fromImage(img.scaled(s, s, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        if (!px.isNull())
+            icon.addPixmap(px);
+    }
+    if (icon.isNull())
+        icon.addPixmap(QPixmap::fromImage(img));
+    return icon;
+}
+
 int main(int argc, char* argv[]) {
     setvbuf(stderr, nullptr, _IONBF, 0);
 
@@ -109,6 +133,15 @@ int main(int argc, char* argv[]) {
     QWebEngineUrlScheme::registerScheme(scheme);
 
     QApplication app(argc, argv);
+    app.setWindowIcon(loadAppIcon());
+    for (const QString& key : QStyleFactory::keys()) {
+        if (key.compare(QStringLiteral("breeze"), Qt::CaseInsensitive) == 0) {
+            if (QStyle* s = QStyleFactory::create(key)) {
+                app.setStyle(s);
+                break;
+            }
+        }
+    }
 
     const QString logPath = QDir::temp().absoluteFilePath(QStringLiteral("y_disquette.log"));
     const QByteArray logPathBytes = logPath.toUtf8();
@@ -134,8 +167,9 @@ int main(int argc, char* argv[]) {
     ydisquette::CompositionRoot root;
 
     ydisquette::MainContentWidget* mainContent = new ydisquette::MainContentWidget(root);
-    QMainWindow mainWindow;
+    ydisquette::MainWindow mainWindow(root);
     mainWindow.setWindowTitle(QStringLiteral("Y.Disquette"));
+    mainWindow.setWindowIcon(app.windowIcon());
     mainWindow.setMinimumSize(400, 300);
     mainWindow.resize(800, 600);
     mainWindow.setCentralWidget(mainContent);
@@ -172,9 +206,6 @@ int main(int argc, char* argv[]) {
     } else if (hasCredentials) {
         ydisquette::log(ydisquette::LogLevel::Normal,
                         "[Auth] Credentials present and no token, showing login UI.");
-        mainContent->setProperty("skipFirstShow", true);
-        mainWindow.show();
-        mainWindow.hide();
         auto* handler = new ydisquette::auth::OAuthCallbackSchemeHandler(&app);
         QWebEngineProfile::defaultProfile()->installUrlSchemeHandler(
             QByteArrayLiteral("ydisquette"), handler);
@@ -186,6 +217,9 @@ int main(int argc, char* argv[]) {
                          login, &ydisquette::auth::LoginWidget::onCodeReceived);
         QObject::connect(login, &ydisquette::auth::LoginWidget::loggedIn, [&]() {
             saveConfigFromApp(root, &mainWindow, mainContent);
+            mainContent->setProperty("skipFirstShow", true);
+            mainWindow.show();
+            mainWindow.hide();
             mainWindow.show();
             mainWindow.raise();
             mainWindow.activateWindow();
@@ -199,6 +233,8 @@ int main(int argc, char* argv[]) {
         });
         login->startLogin();
         login->show();
+        login->raise();
+        login->activateWindow();
     } else {
         if (!hasCredentials) {
             ydisquette::log(ydisquette::LogLevel::Normal,

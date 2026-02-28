@@ -21,6 +21,8 @@ export interface StatusBarState {
   quotaTotal: number
   syncStatus: SyncStatus
   syncMessage: string
+  online?: boolean
+  speed?: number
 }
 
 export interface SettingsForm {

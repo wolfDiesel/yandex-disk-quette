@@ -18,6 +18,8 @@ export function Contents() {
   const setContentsPathLoading = useStore((s) => s.setContentsPathLoading)
   const setSelectedTreePath = useStore((s) => s.setSelectedTreePath)
   const expandPath = useStore((s) => s.expandPath)
+  const openingFilePath = useStore((s) => s.openingFilePath)
+  const setOpeningFilePath = useStore((s) => s.setOpeningFilePath)
   const bridge = useBridge()
   const [ctxMenu, setCtxMenu] = useState<ContextMenuState>(null)
 
@@ -52,9 +54,10 @@ export function Contents() {
 
   const handleFileDblClick = useCallback(
     (path: string) => {
+      setOpeningFilePath(path)
       bridge?.openFileFromCloud(path)
     },
-    [bridge]
+    [bridge, setOpeningFilePath]
   )
 
   if (contentsPath === null) {
@@ -91,6 +94,7 @@ export function Contents() {
             <ContentRow
               key={it.path}
               item={it}
+              openingFilePath={openingFilePath}
               onFolderClick={handleFolderClick}
               onFileDblClick={handleFileDblClick}
               onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ path: it.path, isDir: it.dir, x: e.clientX, y: e.clientY }) }}
@@ -113,6 +117,7 @@ export function Contents() {
               <ContentTableRow
                 key={it.path}
                 item={it}
+                openingFilePath={openingFilePath}
                 onFolderClick={handleFolderClick}
                 onFileDblClick={handleFileDblClick}
                 onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ path: it.path, isDir: it.dir, x: e.clientX, y: e.clientY }) }}
@@ -127,6 +132,7 @@ export function Contents() {
             <ContentIconCard
               key={it.path}
               item={it}
+              openingFilePath={openingFilePath}
               onFolderClick={handleFolderClick}
               onFileDblClick={handleFileDblClick}
               onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ path: it.path, isDir: it.dir, x: e.clientX, y: e.clientY }) }}
@@ -217,13 +223,30 @@ function ContentsIconsSkeleton() {
 
 interface ContentRowProps {
   item: ContentItem
+  openingFilePath: string | null
   onFolderClick: (path: string) => void
   onFileDblClick: (path: string) => void
   onContextMenu: (e: React.MouseEvent) => void
 }
 
-function ContentRow({ item, onFolderClick, onFileDblClick, onContextMenu }: ContentRowProps) {
+function NameWithActivity({ name, path, isOpening }: { name: string; path: string; isOpening: boolean }) {
+  return (
+    <span className="relative inline-block min-w-0 flex-1 min-h-[1.25rem]">
+      {isOpening && (
+        <span
+          className="absolute inset-0 rounded bg-primary/25 animate-pulse"
+          aria-hidden
+          style={{ animationDuration: '1s' }}
+        />
+      )}
+      <span className={cn('relative truncate block', isOpening && 'z-[1]')}>{name || path}</span>
+    </span>
+  )
+}
+
+function ContentRow({ item, openingFilePath, onFolderClick, onFileDblClick, onContextMenu }: ContentRowProps) {
   const isDir = item.dir
+  const isOpening = !isDir && openingFilePath === item.path
   return (
     <li
       className="flex items-center gap-2 py-2 px-2 rounded-md hover:bg-accent min-h-10 cursor-pointer"
@@ -237,7 +260,7 @@ function ContentRow({ item, onFolderClick, onFileDblClick, onContextMenu }: Cont
       <span className="shrink-0 w-6 text-center" aria-hidden>
         {iconForItem(item)}
       </span>
-      <span className="min-w-0 truncate flex-1">{item.name || item.path}</span>
+      <NameWithActivity name={item.name ?? ''} path={item.path} isOpening={isOpening} />
       {!isDir && item.size !== undefined && (
         <span className="text-muted-foreground text-xs shrink-0">{formatSize(item.size)}</span>
       )}
@@ -245,8 +268,9 @@ function ContentRow({ item, onFolderClick, onFileDblClick, onContextMenu }: Cont
   )
 }
 
-function ContentTableRow({ item, onFolderClick, onFileDblClick, onContextMenu }: ContentRowProps) {
+function ContentTableRow({ item, openingFilePath, onFolderClick, onFileDblClick, onContextMenu }: ContentRowProps) {
   const isDir = item.dir
+  const isOpening = !isDir && openingFilePath === item.path
   return (
     <tr
       className="border-b border-border/50 hover:bg-accent/50 cursor-pointer"
@@ -258,15 +282,18 @@ function ContentTableRow({ item, onFolderClick, onFileDblClick, onContextMenu }:
       title={itemTooltip(item)}
     >
       <td className="py-1.5 px-2 text-center">{iconForItem(item)}</td>
-      <td className="py-1.5 px-2 min-w-0 truncate max-w-md">{item.name || item.path}</td>
+      <td className="py-1.5 px-2 min-w-0 max-w-md">
+        <NameWithActivity name={item.name ?? ''} path={item.path} isOpening={isOpening} />
+      </td>
       <td className="py-1.5 px-2 text-muted-foreground">{isDir ? '—' : formatSize(item.size)}</td>
       <td className="py-1.5 px-2 text-muted-foreground text-xs">{item.modified ?? '—'}</td>
     </tr>
   )
 }
 
-function ContentIconCard({ item, onFolderClick, onFileDblClick, onContextMenu }: ContentRowProps) {
+function ContentIconCard({ item, openingFilePath, onFolderClick, onFileDblClick, onContextMenu }: ContentRowProps) {
   const isDir = item.dir
+  const isOpening = !isDir && openingFilePath === item.path
   return (
     <div
       className="flex flex-col items-center p-3 rounded-lg hover:bg-accent cursor-pointer"
@@ -280,7 +307,18 @@ function ContentIconCard({ item, onFolderClick, onFileDblClick, onContextMenu }:
       <span className="text-3xl mb-1" aria-hidden>
         {iconForItem(item)}
       </span>
-      <span className="text-xs text-center truncate w-full">{item.name || item.path}</span>
+      <span className="relative w-full min-h-[1rem] flex justify-center">
+        {isOpening && (
+          <span
+            className="absolute inset-0 rounded bg-primary/25 animate-pulse"
+            aria-hidden
+            style={{ animationDuration: '1s' }}
+          />
+        )}
+        <span className={cn('text-xs text-center truncate w-full relative', isOpening && 'z-[1]')}>
+          {item.name || item.path}
+        </span>
+      </span>
     </div>
   )
 }

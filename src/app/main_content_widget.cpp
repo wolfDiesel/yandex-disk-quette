@@ -34,6 +34,9 @@
 #include <QJsonObject>
 #include <QVBoxLayout>
 #include <QFileSystemWatcher>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <algorithm>
 
 #include "ui_main_content.h"
@@ -92,11 +95,15 @@ QString MainContentWidget::formatBytes(int64_t bytes) {
 
 static const int kCloudCheckFirstRunDelayMs = 1500;
 
+static const int kInternetCheckIntervalMs = 30000;
+
 MainContentWidget::MainContentWidget(CompositionRoot& root, QWidget* parent)
     : QWidget(parent), root_(&root), ui_(new Ui::MainContentWidget),
       treeModel_(new QStandardItemModel(this)), contentsModel_(new QStandardItemModel(this)),
       refreshTimer_(new QTimer(this)), cloudCheckTimer_(new QTimer(this)),
       syncWatcher_(new QFileSystemWatcher(this)), syncLocalDebounceTimer_(new QTimer(this)) {
+    internetCheckTimer_ = new QTimer(this);
+    internetCheckNam_ = new QNetworkAccessManager(this);
     syncLocalDebounceTimer_->setSingleShot(true);
     connect(syncWatcher_, &QFileSystemWatcher::directoryChanged, this, &MainContentWidget::onSyncPathChanged);
     connect(syncWatcher_, &QFileSystemWatcher::fileChanged, this, &MainContentWidget::onSyncPathChanged);
@@ -147,6 +154,8 @@ MainContentWidget::MainContentWidget(CompositionRoot& root, QWidget* parent)
             this, &MainContentWidget::onIndexStateLoaded);
     connect(&root_->syncService(), &sync::SyncService::pathsCreatedInCloud,
             this, &MainContentWidget::onPathsCreatedInCloud);
+    connect(&root_->syncService(), &sync::SyncService::syncThroughput,
+            this, &MainContentWidget::onSyncThroughput);
     ui_->contentsView_->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(ui_->contentsView_, &QListView::customContextMenuRequested,
             this, &MainContentWidget::onContentsContextMenuRequested);
@@ -159,6 +168,8 @@ MainContentWidget::MainContentWidget(CompositionRoot& root, QWidget* parent)
     int refreshSec = root_->getSettingsUseCase().run().refreshIntervalSec;
     refreshTimer_->start((refreshSec >= 5 && refreshSec <= 3600 ? refreshSec : 60) * 1000);
     connect(cloudCheckTimer_, &QTimer::timeout, this, &MainContentWidget::onCloudCheckTimer);
+    connect(internetCheckTimer_, &QTimer::timeout, this, &MainContentWidget::onInternetCheckTimer);
+    internetCheckTimer_->start(kInternetCheckIntervalMs);
     ui_->treeLabel_->hide();
     ui_->quotaProgressBar_->setMinimum(0);
     ui_->quotaProgressBar_->setMaximum(100);
@@ -227,7 +238,7 @@ void MainContentWidget::onSyncPathChanged(const QString& path) {
 }
 
 void MainContentWidget::onSyncLocalDebounce() {
-    if (syncStatus_ == sync::SyncStatus::Syncing) return;
+    if (!online_ || syncStatus_ == sync::SyncStatus::Syncing) return;
     std::vector<std::string> paths = root_->getSelectedPaths();
     auto settings = root_->getSettingsUseCase().run();
     if (paths.empty() || settings.syncPath.empty()) return;
@@ -749,6 +760,7 @@ QString MainContentWidget::chooseSyncFolder(const QString& startPath) {
 }
 
 void MainContentWidget::onSyncClicked() {
+    if (!online_) return;
     std::vector<std::string> paths = root_->getSelectedPaths();
     auto settings = root_->getSettingsUseCase().run();
     if (paths.empty()) {
@@ -784,6 +796,8 @@ void MainContentWidget::onSyncClicked() {
 void MainContentWidget::onSyncStatusChanged(sync::SyncStatus status) {
     bool wasSyncing = (syncStatus_ == sync::SyncStatus::Syncing);
     syncStatus_ = status;
+    if (status == sync::SyncStatus::Idle)
+        lastSyncSpeed_ = 0;
     if (status != sync::SyncStatus::Syncing)
         lastSyncProgressMessage_.clear();
     updateSyncIndicator();
@@ -878,7 +892,49 @@ void MainContentWidget::onRefreshTimer() {
     loadAndDisplay();
 }
 
+void MainContentWidget::onInternetCheckTimer() {
+    if (internetCheckReply_) return;
+    QNetworkRequest req(QUrl(QStringLiteral("https://ya.ru")));
+    req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                     QNetworkRequest::NoLessSafeRedirectPolicy);
+    internetCheckReply_ = internetCheckNam_->get(req);
+    connect(internetCheckReply_, &QNetworkReply::finished, this, &MainContentWidget::onInternetCheckFinished);
+}
+
+void MainContentWidget::onInternetCheckFinished() {
+    QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
+    if (!reply) return;
+    int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    bool ok = (reply->error() == QNetworkReply::NoError) || (statusCode > 0);
+    bool wasOffline = !online_;
+    online_ = ok;
+    if (wasOffline && online_)
+        tryResumeSyncAfterOnline();
+    else if (!online_ && syncStatus_ == sync::SyncStatus::Syncing)
+        root_->syncService().stopSync();
+    internetCheckReply_.clear();
+    reply->deleteLater();
+    updateSyncIndicator();
+    emitStatusBarUpdate();
+}
+
+void MainContentWidget::tryResumeSyncAfterOnline() {
+    if (syncStatus_ == sync::SyncStatus::Syncing) return;
+    std::vector<std::string> paths = root_->getSelectedPaths();
+    auto settings = root_->getSettingsUseCase().run();
+    if (paths.empty() || settings.syncPath.empty()) return;
+    auto token = root_->tokenProvider().getAccessToken();
+    if (!token || token->empty()) return;
+    root_->syncService().startSyncLocalToCloud(paths, settings.syncPath, root_->getSyncIndexDbPath(), settings.maxRetries);
+}
+
+void MainContentWidget::onSyncThroughput(qint64 bytesPerSecond) {
+    lastSyncSpeed_ = static_cast<double>(bytesPerSecond);
+    emitStatusBarUpdate();
+}
+
 void MainContentWidget::onCloudCheckTimer() {
+    if (!online_) return;
     setupSyncWatcher();
     if (syncStatus_ == sync::SyncStatus::Syncing)
         return;
@@ -973,13 +1029,15 @@ void MainContentWidget::updateSyncIndicator() {
     bool syncOn = !root_->getSelectedPaths().empty();
     bool syncing = (syncStatus_ == sync::SyncStatus::Syncing);
     bool error = (syncStatus_ == sync::SyncStatus::Error);
-    QString color = error ? QStringLiteral("#f44336")
+    QString color = !online_ ? QStringLiteral("#757575")
+                 : error ? QStringLiteral("#f44336")
                  : syncing ? QStringLiteral("#ff9800")
                  : syncOn ? QStringLiteral("#4caf50")
                  : QStringLiteral("#9e9e9e");
     ui_->connectionIndicator_->setStyleSheet(
         QStringLiteral("background-color: %1; border-radius: 7px;").arg(color));
-    QString tip = error ? tr("Sync error")
+    QString tip = !online_ ? tr("No internet")
+                 : error ? tr("Sync error")
                  : syncing ? tr("Syncing…")
                  : syncOn ? tr("Sync on")
                  : tr("Sync off");
@@ -1010,6 +1068,8 @@ void MainContentWidget::emitStatusBarUpdate() {
     o.insert(QStringLiteral("quotaTotal"), static_cast<qint64>(lastQuotaTotal_));
     o.insert(QStringLiteral("syncStatus"), status);
     o.insert(QStringLiteral("syncMessage"), lastSyncProgressMessage_);
+    o.insert(QStringLiteral("online"), online_);
+    o.insert(QStringLiteral("speed"), static_cast<double>(lastSyncSpeed_));
     emit statusBarUpdated(QString::fromUtf8(QJsonDocument(o).toJson(QJsonDocument::Compact)));
 }
 
@@ -1075,10 +1135,12 @@ void MainContentWidget::openFileFromCloud(const QString& cloudPath) {
         QDir().mkpath(base);
     QString localPath = base + QLatin1Char('/') + fileName;
     root_->downloadFileUseCase().runAsync(cloudPath.toStdString(), localPath, [this, localPath](sync::DiskResourceResult r) {
-        if (r.success)
+        if (r.success) {
             QDesktopServices::openUrl(QUrl::fromLocalFile(localPath));
-        else
+            emit downloadFinished(true, QString());
+        } else {
             emit downloadFinished(false, r.errorMessage.isEmpty() ? tr("Failed to download file.") : r.errorMessage);
+        }
     });
 }
 

@@ -28,6 +28,7 @@ signals:
     void tokenExpired();
     void syncError(QString message);
     void syncProgressMessage(QString message);
+    void syncThroughput(qint64 bytesPerSecond);
     void localToCloudFinished(const std::vector<std::string>& selectedPaths,
                               const std::string& syncPath,
                               const std::string& accessToken);

@@ -13,6 +13,9 @@
 #include <QTimer>
 #include <QAction>
 #include <QWidget>
+#include <QNetworkAccessManager>
+#include <QPointer>
+class QNetworkReply;
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -82,6 +85,10 @@ private slots:
     void onContentsDoubleClicked(const QModelIndex& index);
     void onRefreshTimer();
     void onCloudCheckTimer();
+    void onInternetCheckTimer();
+    void onInternetCheckFinished();
+    void onSyncThroughput(qint64 bytesPerSecond);
+    void tryResumeSyncAfterOnline();
     void onSyncPathChanged(const QString& path);
     void onSyncLocalDebounce();
     void onIndexStateLoaded(sync::IndexState state);
@@ -115,6 +122,11 @@ private:
     QTimer* refreshTimer_;
     QTimer* cloudCheckTimer_;
     bool cloudCheckTimerStarted_ = false;
+    QTimer* internetCheckTimer_ = nullptr;
+    QNetworkAccessManager* internetCheckNam_ = nullptr;
+    QPointer<QNetworkReply> internetCheckReply_;
+    bool online_ = true;
+    double lastSyncSpeed_ = 0;
     QFileSystemWatcher* syncWatcher_ = nullptr;
     QTimer* syncLocalDebounceTimer_ = nullptr;
     QSet<QString> syncWatchedPaths_;

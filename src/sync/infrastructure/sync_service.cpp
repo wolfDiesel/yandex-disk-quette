@@ -27,6 +27,7 @@ SyncService::SyncService(auth::ITokenProvider const& tokenProvider, QObject* par
     connect(worker_, &SyncWorker::tokenExpired, this, &SyncService::onWorkerTokenExpired, Qt::QueuedConnection);
     connect(worker_, &SyncWorker::syncError, this, &SyncService::onWorkerSyncError, Qt::QueuedConnection);
     connect(worker_, &SyncWorker::syncProgressMessage, this, &SyncService::onWorkerSyncProgressMessage, Qt::QueuedConnection);
+    connect(worker_, &SyncWorker::syncThroughput, this, &SyncService::onWorkerSyncThroughput, Qt::QueuedConnection);
     connect(this, &SyncService::stopRequested, worker_, &SyncWorker::requestStop, Qt::QueuedConnection);
     thread_->start();
 }
@@ -106,6 +107,10 @@ void SyncService::onWorkerSyncError(QString message) {
 
 void SyncService::onWorkerSyncProgressMessage(QString message) {
     emit syncProgressMessage(message);
+}
+
+void SyncService::onWorkerSyncThroughput(qint64 bytesPerSecond) {
+    emit syncThroughput(bytesPerSecond);
 }
 
 }  // namespace sync

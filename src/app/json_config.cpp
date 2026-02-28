@@ -40,6 +40,7 @@ static JsonConfig loadFromFile(const QString& path) {
     c.windowGeometry = QByteArray::fromBase64(o.value(QStringLiteral("window_geometry")).toString().toUtf8());
     c.webExperimentGeometry = QByteArray::fromBase64(o.value(QStringLiteral("web_experiment_geometry")).toString().toUtf8());
     c.webExperimentSidebarCollapsed = o.value(QStringLiteral("web_experiment_sidebar_collapsed")).toBool(false);
+    c.debugConsole = o.value(QStringLiteral("debug_console")).toBool(false);
     int tw = o.value(QStringLiteral("web_experiment_tree_width")).toInt(280);
     c.webExperimentTreeWidth = (tw >= 160 && tw <= 600) ? tw : 280;
     QString theme = o.value(QStringLiteral("web_experiment_theme")).toString();
@@ -72,6 +73,7 @@ static bool saveToFile(const QString& path, const JsonConfig& c) {
     o.insert(QStringLiteral("window_geometry"), QString::fromUtf8(c.windowGeometry.toBase64()));
     o.insert(QStringLiteral("web_experiment_geometry"), QString::fromUtf8(c.webExperimentGeometry.toBase64()));
     o.insert(QStringLiteral("web_experiment_sidebar_collapsed"), c.webExperimentSidebarCollapsed);
+    o.insert(QStringLiteral("debug_console"), c.debugConsole);
     o.insert(QStringLiteral("web_experiment_tree_width"), c.webExperimentTreeWidth);
     if (!c.webExperimentTheme.isEmpty())
         o.insert(QStringLiteral("web_experiment_theme"), c.webExperimentTheme);

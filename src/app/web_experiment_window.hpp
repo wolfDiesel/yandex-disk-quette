@@ -5,6 +5,7 @@
 class QCloseEvent;
 class QPlainTextEdit;
 class QShowEvent;
+class QSplitter;
 class QWebChannel;
 class QWebEngineView;
 
@@ -40,6 +41,7 @@ private:
     WebExperimentPage* page_ = nullptr;
     QWebChannel* channel_ = nullptr;
     WebExperimentBridge* bridge_ = nullptr;
+    QSplitter* splitter_ = nullptr;
     QPlainTextEdit* consoleEdit_ = nullptr;
     bool geometryRestored_ = false;
 };

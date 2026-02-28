@@ -44,6 +44,7 @@ interface AppState {
   treeWidth: number
   sidebarCollapsed: boolean
   theme: 'light' | 'dark' | 'system'
+  openingFilePath: string | null
 }
 
 interface AppActions {
@@ -63,6 +64,7 @@ interface AppActions {
   setTreeWidth: (width: number) => void
   setSidebarCollapsed: (collapsed: boolean) => void
   setTheme: (theme: 'light' | 'dark' | 'system') => void
+  setOpeningFilePath: (path: string | null) => void
 }
 
 const initialStatus: StatusBarState = {
@@ -70,6 +72,8 @@ const initialStatus: StatusBarState = {
   quotaTotal: 0,
   syncStatus: 'off',
   syncMessage: '',
+  online: true,
+  speed: 0,
 }
 
 export const useStore = create<AppState & AppActions>((set) => ({
@@ -87,6 +91,9 @@ export const useStore = create<AppState & AppActions>((set) => ({
   treeWidth: 280,
   sidebarCollapsed: false,
   theme: 'system',
+  openingFilePath: null,
+
+  setOpeningFilePath: (path) => set({ openingFilePath: path }),
 
   setTreeData: (data) =>
     set((state) => {

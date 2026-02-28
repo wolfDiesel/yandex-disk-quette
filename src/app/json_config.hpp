@@ -12,6 +12,7 @@ struct JsonConfig {
     QByteArray windowGeometry;
     QByteArray webExperimentGeometry;
     bool webExperimentSidebarCollapsed = false;
+    bool debugConsole = false;
     int webExperimentTreeWidth = 280;
     QString webExperimentTheme;
     QByteArray splitterState;

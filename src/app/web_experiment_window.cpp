@@ -36,11 +36,11 @@ WebExperimentWindow::WebExperimentWindow(MainContentWidget* mainContent, QWidget
     resize(520, 640);
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-    auto* splitter = new QSplitter(Qt::Vertical, this);
+    splitter_ = new QSplitter(Qt::Vertical, this);
     view_ = new WebExperimentView(this);
     page_ = new WebExperimentPage(this);
     view_->setPage(page_);
-    splitter->addWidget(view_);
+    splitter_->addWidget(view_);
     auto* consoleBox = new QGroupBox(tr("Console"), this);
     auto* consoleLayout = new QVBoxLayout(consoleBox);
     consoleEdit_ = new QPlainTextEdit(this);
@@ -48,11 +48,11 @@ WebExperimentWindow::WebExperimentWindow(MainContentWidget* mainContent, QWidget
     consoleEdit_->setMaximumBlockCount(2000);
     consoleEdit_->setPlaceholderText(tr("JavaScript console output (console.log, errors)…"));
     consoleLayout->addWidget(consoleEdit_);
-    splitter->addWidget(consoleBox);
-    splitter->setStretchFactor(0, 1);
-    splitter->setStretchFactor(1, 0);
-    splitter->setSizes({400, 200});
-    layout->addWidget(splitter);
+    splitter_->addWidget(consoleBox);
+    splitter_->setStretchFactor(0, 1);
+    splitter_->setStretchFactor(1, 0);
+    splitter_->setSizes({400, 200});
+    layout->addWidget(splitter_);
     channel_ = new QWebChannel(this);
     bridge_ = new WebExperimentBridge(mainContent, this);
     channel_->registerObject(QStringLiteral("bridge"), bridge_);
@@ -71,11 +71,16 @@ WebExperimentWindow::WebExperimentWindow(MainContentWidget* mainContent, QWidget
 
 void WebExperimentWindow::showEvent(QShowEvent* event) {
     QWidget::showEvent(event);
-    if (isWindow() && !geometryRestored_) {
+    if (!geometryRestored_) {
         geometryRestored_ = true;
         JsonConfig c = JsonConfig::load();
-        if (!c.webExperimentGeometry.isEmpty())
+        if (isWindow() && !c.webExperimentGeometry.isEmpty())
             restoreGeometry(c.webExperimentGeometry);
+        if (!c.debugConsole && splitter_ && splitter_->count() >= 2) {
+            int h = splitter_->height();
+            if (h <= 0) h = 400;
+            splitter_->setSizes({h, 0});
+        }
     }
 }
 

@@ -30,6 +30,7 @@ export function BridgeProvider({ children }: { children: ReactNode }) {
         }
         if (b.downloadFinished?.connect) {
           b.downloadFinished.connect((success: boolean, errorMessage: string) => {
+            useStore.getState().setOpeningFilePath(null)
             if (!success && errorMessage) useStore.getState().showToast(errorMessage)
           })
         }
@@ -68,6 +69,8 @@ export function BridgeProvider({ children }: { children: ReactNode }) {
           quotaTotal: data.quotaTotal ?? 0,
           syncStatus: status,
           syncMessage: data.syncMessage ?? '',
+          online: data.online !== false,
+          speed: typeof data.speed === 'number' ? data.speed : 0,
         })
       } catch {
         // ignore

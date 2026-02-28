@@ -17,7 +17,7 @@ jobs:
           dnf install -y dnf-plugins-core
           dnf config-manager --set-disabled fedora-cisco-openh264 || true
           dnf install -y \
-            git gcc-c++ cmake \
+            git gcc-c++ cmake nodejs npm \
             qt6-qtbase-devel qt6-qttools-devel qt6-qtwebengine-devel \
             mesa-libGL-devel libxkbcommon-devel vulkan-headers
 
@@ -42,7 +42,7 @@ jobs:
           dnf install -y dnf-plugins-core
           dnf config-manager --set-disabled fedora-cisco-openh264 || true
           dnf install -y \
-            git gcc-c++ cmake python3 wget file ImageMagick \
+            git gcc-c++ cmake python3 wget file ImageMagick nodejs npm \
             qt6-qtbase-devel qt6-qttools-devel qt6-qtwebengine-devel \
             mesa-libGL-devel libxkbcommon-devel vulkan-headers
 

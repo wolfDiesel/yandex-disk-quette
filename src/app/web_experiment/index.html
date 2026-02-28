@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Y.Disquette</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+</head>
+<body class="min-h-screen flex bg-background text-foreground">
+  <aside class="sidebar flex flex-col w-60 shrink-0 border-r border-border bg-muted/80 min-h-0">
+    <div class="shrink-0 px-4 py-4 border-b border-border">
+      <h1 class="text-sm font-semibold tracking-tight">Y.Disquette</h1>
+    </div>
+    <nav class="sidebar-nav flex-1 overflow-y-auto py-2 min-h-0">
+      <a href="#" id="nav-item-nav" class="sidebar-item flex items-center gap-3 px-4 py-2.5 text-sm text-foreground bg-primary/10 border-l-2 border-primary">
+        <span aria-hidden="true">📂</span>
+        <span>Навигация</span>
+      </a>
+      <a href="#" id="nav-item-settings" class="sidebar-item flex items-center gap-3 px-4 py-2.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground border-l-2 border-transparent">
+        <span aria-hidden="true">⚙</span>
+        <span>Настройки</span>
+      </a>
+    </nav>
+    <div class="shrink-0 p-2 border-t border-border">
+      <button type="button" id="refresh-tree" class="w-full rounded-md px-3 py-2 text-xs font-medium bg-primary text-primary-foreground hover:opacity-90">Обновить дерево</button>
+    </div>
+  </aside>
+  <div class="flex-1 flex flex-col min-w-0 min-h-0">
+    <div id="pane-nav" class="flex-1 flex flex-col min-h-0">
+      <div class="shrink-0 flex items-center gap-2 border-b border-border bg-muted/30 px-4 py-2">
+        <nav id="breadcrumbs" class="min-w-0 flex-1 flex items-center" aria-label="breadcrumb">
+          <ol id="breadcrumbs-list" class="flex items-center gap-1 min-w-0 flex-wrap text-sm">
+            <li class="text-muted-foreground truncate" id="breadcrumbs-placeholder">Выберите папку</li>
+          </ol>
+        </nav>
+        <div class="flex items-center gap-2 shrink-0">
+          <button type="button" id="btn-sync" class="rounded px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground hover:opacity-90" title="Синхронизировать">Синхр.</button>
+          <button type="button" id="btn-stop" class="rounded px-3 py-1.5 text-xs font-medium bg-muted text-foreground hover:bg-accent hidden" title="Остановить">Стоп</button>
+          <span class="w-px h-5 bg-border"></span>
+          <button type="button" class="view-mode rounded p-2 text-muted-foreground hover:bg-accent hover:text-foreground" data-view="list" title="Список">≡</button>
+          <button type="button" class="view-mode rounded p-2 text-muted-foreground hover:bg-accent hover:text-foreground" data-view="table" title="Таблица">▦</button>
+          <button type="button" class="view-mode rounded p-2 text-muted-foreground hover:bg-accent hover:text-foreground" data-view="icons" title="Значки">⊞</button>
+        </div>
+      </div>
+      <div class="flex-1 flex min-h-0">
+        <div id="tree-root" class="w-64 shrink-0 border-r border-border overflow-auto p-2 min-h-0"></div>
+        <div id="contents-view" class="flex-1 overflow-auto p-4 min-h-0 relative" data-view="list">
+          <p class="text-sm text-muted-foreground">Кликните по папке слева.</p>
+        </div>
+      </div>
+      <div id="contents-context-menu" class="fixed hidden z-50 min-w-40 rounded-md border border-border bg-background shadow-lg py-1">
+        <button type="button" id="ctx-download" class="w-full text-left px-3 py-2 text-sm hover:bg-accent">Скачать</button>
+        <button type="button" id="ctx-delete" class="w-full text-left px-3 py-2 text-sm hover:bg-accent text-red-600">Удалить с Диска</button>
+      </div>
+      <div id="error-toast" class="fixed bottom-14 left-1/2 -translate-x-1/2 max-w-md rounded-md border border-red-500/50 bg-red-500/10 px-4 py-2 text-sm text-red-700 dark:text-red-300 hidden z-50 shadow-lg"></div>
+    </div>
+    <div id="pane-settings" class="flex-1 flex flex-col min-h-0 hidden overflow-auto">
+      <div class="p-6 max-w-xl">
+        <h2 class="text-base font-semibold mb-4">Настройки</h2>
+        <form id="settings-form" class="space-y-4">
+          <div>
+            <label for="settings-sync-path" class="block text-sm font-medium mb-1">Папка синхронизации</label>
+            <div class="flex gap-2">
+              <input type="text" id="settings-sync-path" class="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="/path/to/folder">
+              <button type="button" id="settings-browse" class="shrink-0 rounded-md px-3 py-2 text-sm bg-muted hover:bg-accent">Обзор</button>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label for="settings-refresh-sec" class="block text-sm font-medium mb-1">Интервал обновления (сек)</label>
+              <input type="number" id="settings-refresh-sec" min="5" max="3600" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+            </div>
+            <div>
+              <label for="settings-cloud-sec" class="block text-sm font-medium mb-1">Проверка облака (сек)</label>
+              <input type="number" id="settings-cloud-sec" min="5" max="3600" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+            </div>
+          </div>
+          <div>
+            <label for="settings-max-retries" class="block text-sm font-medium mb-1">Повторы при ошибке</label>
+            <input type="number" id="settings-max-retries" min="1" max="10" class="w-24 rounded-md border border-input bg-background px-3 py-2 text-sm">
+          </div>
+          <div class="flex gap-4">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="settings-hide-tray" class="rounded border-input">
+              <span class="text-sm">Сворачивать в трей</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="settings-close-tray" class="rounded border-input">
+              <span class="text-sm">Закрывать в трей</span>
+            </label>
+          </div>
+          <div class="pt-2">
+            <button type="submit" class="rounded-md px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:opacity-90">Сохранить</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <footer id="status-bar" class="shrink-0 flex items-center gap-3 px-4 py-1.5 border-t border-border bg-muted/50 text-xs text-muted-foreground min-h-8">
+      <span id="status-indicator" class="w-3.5 h-3.5 rounded-full bg-muted-foreground/50 shrink-0" title="Синхронизация"></span>
+      <div id="status-quota-bar" class="w-32 h-2 rounded-full bg-muted overflow-hidden shrink-0 hidden">
+        <div id="status-quota-fill" class="h-full bg-primary transition-all duration-200" style="width: 0%"></div>
+      </div>
+      <span id="status-quota-text" class="shrink-0">— / —</span>
+      <span id="status-sync-msg" class="min-w-0 truncate flex-1"></span>
+    </footer>
+  </div>
+  <script src="tree.js"></script>
+  <script src="contents.js"></script>
+  <script src="settings.js"></script>
+  <script src="status.js"></script>
+</body>
+</html>

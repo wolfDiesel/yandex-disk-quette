@@ -1,4 +1,5 @@
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
+find_program(NPM_EXECUTABLE npm REQUIRED)
 execute_process(
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/obfuscate_oauth.py ${CMAKE_CURRENT_BINARY_DIR}/oauth_build_config.h
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
@@ -8,7 +9,15 @@ if(NOT _oauth_result EQUAL 0)
     message(FATAL_ERROR "obfuscate_oauth.py failed")
 endif()
 
-add_executable(Y.Disquette main.cpp main_window.cpp composition_root.cpp main_content_widget.cpp settings_dialog.cpp json_config.cpp app_resources.qrc main_content.ui settings_dialog.ui ../auth/ui/login_widget.cpp ../auth/infrastructure/oauth_callback_scheme_handler.cpp)
+add_custom_target(web_experiment_react_build ALL
+  COMMAND ${NPM_EXECUTABLE} install
+  COMMAND ${NPM_EXECUTABLE} run build
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/web_experiment_react
+  COMMENT "Building web experiment React UI"
+)
+
+add_executable(Y.Disquette main.cpp main_window.cpp web_experiment_window.cpp web_experiment_page.cpp web_experiment_bridge.cpp composition_root.cpp main_content_widget.cpp settings_dialog.cpp json_config.cpp app_resources.qrc web_experiment_react.qrc main_content.ui settings_dialog.ui ../auth/ui/login_widget.cpp ../auth/infrastructure/oauth_callback_scheme_handler.cpp)
+add_dependencies(Y.Disquette web_experiment_react_build)
 target_include_directories(Y.Disquette PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(Y.Disquette PRIVATE
   y_disquette_core
@@ -17,6 +26,7 @@ target_link_libraries(Y.Disquette PRIVATE
   Qt6::Network
   Qt6::WebEngineCore
   Qt6::WebEngineWidgets
+  Qt6::WebChannel
 )
 set_target_properties(Y.Disquette PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 if(CMAKE_BUILD_TYPE STREQUAL "Release")

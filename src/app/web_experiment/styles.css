@@ -1,0 +1,88 @@
+/* Default style */
+:root {
+  --tree-bg: #fff;
+  --tree-fg: #222;
+  --tree-border: #e0e0e0;
+  --tree-hover: #f0f0f0;
+  --tree-indent: 1.2rem;
+  --tree-font: system-ui, -apple-system, sans-serif;
+}
+
+body {
+  margin: 0;
+  font-family: var(--tree-font);
+  font-size: 14px;
+  background: var(--tree-bg);
+  color: var(--tree-fg);
+}
+
+.toolbar {
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--tree-border);
+  background: var(--tree-hover);
+}
+.title { margin: 0 0 0.25rem 0; font-size: 1rem; font-weight: 600; }
+.style-hint { margin: 0; font-size: 12px; opacity: 0.85; }
+.style-hint a { color: inherit; text-decoration: none; }
+.style-hint a:hover { text-decoration: underline; }
+.top-refs { margin: 0.4rem 0 0 0; font-size: 12px; }
+.top-refs ol { margin: 0.2rem 0 0 0; padding-left: 1.2rem; }
+.top-refs li { margin: 0.15rem 0; }
+.top-refs a { color: #06c; }
+.top-refs a:hover { text-decoration: underline; }
+.design-refs { margin: 0.4rem 0 0 0; font-size: 12px; }
+.design-refs summary { cursor: pointer; opacity: 0.9; }
+.design-refs ul { margin: 0.4rem 0 0 0; padding-left: 1.2rem; }
+.design-refs li { margin: 0.25rem 0; }
+.design-refs a { color: #06c; }
+.design-refs a:hover { text-decoration: underline; }
+
+#tree-root {
+  padding: 0.5rem 0;
+  overflow: auto;
+}
+
+.tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tree .tree { padding-left: var(--tree-indent); border-left: 1px solid var(--tree-border); margin-left: 0.4rem; }
+
+.node { margin: 0.02rem 0; }
+.node.dir .node-label { cursor: pointer; }
+.node-label { display: flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.5rem; cursor: default; border-radius: 4px; }
+.node-label:hover { background: var(--tree-hover); }
+.arrow { font-size: 0.7em; opacity: 0.7; display: inline-block; transition: transform 0.15s ease; }
+.node.dir.collapsed .arrow { transform: rotate(0deg); }
+.node.dir.expanded .arrow { transform: rotate(90deg); }
+.node.dir.collapsed > .tree { display: none; }
+.node.dir.expanded > .tree { display: block; }
+.node-name { flex: 1; }
+.node.checked .node-name { font-weight: 600; }
+
+/* Compact variant */
+body[data-style="compact"] .node-label { padding: 0.1rem 0.4rem; }
+body[data-style="compact"] .tree .tree { padding-left: 1rem; }
+body[data-style="compact"] { font-size: 13px; }
+
+/* Cards variant – folder blocks */
+body[data-style="cards"] .tree .tree {
+  border-left: none;
+  padding-left: 0;
+  margin-left: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+body[data-style="cards"] .node {
+  margin: 0;
+}
+body[data-style="cards"] .node-label {
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--tree-border);
+  border-radius: 6px;
+  min-width: 8em;
+}
+body[data-style="cards"] .node.dir .node-label { background: #f8f8f8; }
+body[data-style="cards"] .node.checked .node-label { border-color: #0a7; background: #e8f8f0; }

@@ -6,6 +6,10 @@
 namespace ydisquette {
 namespace disk_tree {
 
+static QString pathToQString(const std::string& path) {
+    return QString::fromUtf8(path.data(), static_cast<int>(path.size()));
+}
+
 ApiTreeRepository::ApiTreeRepository(auth::YandexDiskApiClient const& api) : api_(api) {}
 
 std::shared_ptr<Node> ApiTreeRepository::getRoot() {
@@ -14,7 +18,7 @@ std::shared_ptr<Node> ApiTreeRepository::getRoot() {
 
 std::vector<std::shared_ptr<Node>> ApiTreeRepository::getChildren(const std::string& path) {
     QUrlQuery q;
-    q.addQueryItem(QStringLiteral("path"), QString::fromStdString(path));
+    q.addQueryItem(QStringLiteral("path"), pathToQString(path));
     q.addQueryItem(QStringLiteral("limit"), QStringLiteral("1000"));
     auth::ApiResponse res = api_.get("/resources", q);
     if (!res.ok()) return {};
@@ -24,7 +28,7 @@ std::vector<std::shared_ptr<Node>> ApiTreeRepository::getChildren(const std::str
 void ApiTreeRepository::getChildrenAsync(const std::string& path,
                                          std::function<void(std::vector<std::shared_ptr<Node>>)> cb) {
     QUrlQuery q;
-    q.addQueryItem(QStringLiteral("path"), QString::fromStdString(path));
+    q.addQueryItem(QStringLiteral("path"), pathToQString(path));
     q.addQueryItem(QStringLiteral("limit"), QStringLiteral("1000"));
     api_.getAsync("/resources", q, [cb](auth::ApiResponse res) {
         cb(res.ok() ? parseResourcesJson(res.body) : std::vector<std::shared_ptr<Node>>{});

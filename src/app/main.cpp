@@ -1,6 +1,7 @@
 #include "composition_root.hpp"
 #include "main_content_widget.hpp"
 #include "main_window.hpp"
+#include "web_experiment_window.hpp"
 #include "oauth_credentials.hpp"
 #include "auth/ui/login_widget.hpp"
 #include "auth/infrastructure/oauth_callback_scheme_handler.hpp"
@@ -182,7 +183,8 @@ int main(int argc, char* argv[]) {
     mainWindow.setWindowIcon(app.windowIcon());
     mainWindow.setMinimumSize(400, 300);
     mainWindow.resize(800, 600);
-    mainWindow.setCentralWidget(mainContent);
+    ydisquette::WebExperimentWindow* webExperimentWindow = new ydisquette::WebExperimentWindow(mainContent, &mainWindow);
+    mainWindow.setCentralWidget(webExperimentWindow);
     QMenuBar* menuBar = mainWindow.menuBar();
     QMenu* fileMenu = menuBar->addMenu(QObject::tr("File"));
     QAction* settingsAction = fileMenu->addAction(QObject::tr("Settings…"));
@@ -194,7 +196,11 @@ int main(int argc, char* argv[]) {
     stopSyncAction->setEnabled(false);
     QObject::connect(stopSyncAction, &QAction::triggered, mainContent, &ydisquette::MainContentWidget::onStopSyncTriggered);
     mainContent->setStopSyncAction(stopSyncAction);
+    fileMenu->addSeparator();
+    QAction* quitAction = fileMenu->addAction(QObject::tr("Quit"));
+    QObject::connect(quitAction, &QAction::triggered, &app, &QApplication::quit);
     loadConfigIntoApp(root, &mainWindow, mainContent);
+    mainContent->ensureInitialLoad();
 
     QString clientId, clientSecret, redirectUri;
     ydisquette::getBuildTimeOAuthCredentials(&clientId, &clientSecret, &redirectUri);

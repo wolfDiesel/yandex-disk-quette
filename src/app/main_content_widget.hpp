@@ -36,10 +36,33 @@ public:
     QByteArray saveState() const;
     void restoreState(const QByteArray& state);
 
+    QByteArray treeAsJson() const;
+    void setPathChecked(const QString& path, bool checked);
+    void requestChildrenForPath(const QString& path);
+    void requestContentsForPath(const QString& path);
+    QString getSettingsJson() const;
+    bool saveSettingsFromJson(const QString& json);
+    QString getLayoutStateJson() const;
+    bool saveLayoutStateFromJson(const QString& json);
+    QString chooseSyncFolder(const QString& startPath);
+
+signals:
+    void childrenForPathLoaded(const QString& path, const QByteArray& json);
+    void contentsForPathLoaded(const QString& path, const QByteArray& json);
+    void statusBarUpdated(const QString& json);
+    void treeRefreshed();
+    void downloadFinished(bool success, const QString& errorMessage);
+    void deleteFinished(bool success, const QString& errorMessage);
+
 public slots:
+    void requestStatusBarUpdate();
+    void ensureInitialLoad();
     void openSettings();
     void onSyncClicked();
     void onStopSyncTriggered();
+    void downloadFile(const QString& cloudPath);
+    void openFileFromCloud(const QString& cloudPath);
+    void deleteFromDisk(const QString& cloudPath);
     void setStopSyncAction(QAction* action);
     void setSyncAction(QAction* action);
 
@@ -76,8 +99,12 @@ private:
     void refreshQuotaLabel();
     void updateStatusBar(const disk_tree::Quota& q);
     void updateSyncIndicator();
+    void emitStatusBarUpdate();
     void updateTreeSizeColumnWidth();
     void navigateTreeToPath(const QString& path);
+    void refreshTreeCheckStatesFromStore();
+    void setCheckStateRecursive(QStandardItem* nameItem, const std::vector<std::string>& paths);
+    void applySelectionChangeSideEffects(const std::string& pathStr, bool nowChecked);
     static QString formatBytes(int64_t bytes);
 
     CompositionRoot* root_;
@@ -101,6 +128,8 @@ private:
     QAction* stopSyncAction_ = nullptr;
     QAction* syncAction_ = nullptr;
     bool syncFolderPromptShown_ = false;
+    int64_t lastQuotaUsed_ = 0;
+    int64_t lastQuotaTotal_ = 0;
 };
 
 }  // namespace ydisquette

@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 222 47% 11%;
+    --primary: 222 47% 11%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: 222 47% 11%;
+      --foreground: 210 40% 98%;
+      --muted: 217 33% 17%;
+      --muted-foreground: 215 20% 65%;
+      --border: 217 33% 17%;
+      --input: 217 33% 17%;
+      --ring: 210 40% 98%;
+      --primary: 210 40% 98%;
+      --primary-foreground: 222 47% 11%;
+      --secondary: 217 33% 17%;
+      --secondary-foreground: 210 40% 98%;
+      --accent: 217 33% 17%;
+      --accent-foreground: 210 40% 98%;
+    }
+  }
+  body {
+    @apply bg-background text-foreground antialiased text-sm;
+  }
+}
+
+@layer components {
+  .tree-children {
+    @apply pl-4 ml-1 border-l border-border;
+  }
+  .node-dir.collapsed > .tree-children {
+    @apply hidden;
+    display: none;
+  }
+  .node-dir.expanded > .tree-children {
+    @apply block;
+  }
+  .arrow-toggle {
+    @apply shrink-0 text-muted-foreground transition-transform duration-150 select-none;
+    min-width: 1.25rem;
+    min-height: 1.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .node-dir.collapsed .arrow-toggle {
+    @apply rotate-0;
+  }
+  .node-dir.expanded .arrow-toggle {
+    @apply rotate-90;
+  }
+  .tree-folder-icon {
+    @apply relative inline-flex shrink-0 w-4 h-4 items-center justify-center text-amber-600 dark:text-amber-500;
+  }
+  .tree-folder-icon .tree-icon {
+    @apply absolute inset-0 w-full h-full;
+  }
+  .tree-folder-icon .tree-icon-closed {
+    @apply block;
+  }
+  .tree-folder-icon .tree-icon-open {
+    @apply hidden;
+  }
+  .node-dir.expanded .tree-folder-icon .tree-icon-closed {
+    @apply hidden;
+  }
+  .node-dir.expanded .tree-folder-icon .tree-icon-open {
+    @apply block;
+  }
+  .node-dir.selected > [role="button"] {
+    @apply bg-primary/10 text-primary font-medium;
+  }
+  .current-folder-arrow {
+    @apply shrink-0 inline-block w-3 h-3 ml-0.5 rounded-sm;
+    background-color: hsl(142 76% 36%);
+    clip-path: polygon(0 0, 100% 50%, 0 100%);
+  }
+  @media (prefers-color-scheme: dark) {
+    .current-folder-arrow {
+      background-color: hsl(142 76% 46%);
+    }
+  }
+  .sidebar-tab {
+    @apply border-transparent;
+  }
+  .sidebar-tab.border-primary {
+    border-bottom-color: hsl(var(--primary));
+    @apply text-foreground;
+  }
+  .sidebar-panel {
+    @apply flex flex-col;
+  }
+}

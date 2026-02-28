@@ -27,9 +27,9 @@ std::vector<std::shared_ptr<Node>> parseResourcesJson(const std::string& body) {
     for (const QJsonValue& v : items) {
         QJsonObject o = v.toObject();
         QString type = o.value(QStringLiteral("type")).toString();
-        std::string pathStr = o.value(QStringLiteral("path")).toString().toStdString();
-        std::string name = o.value(QStringLiteral("name")).toString().toStdString();
-        std::string modified = o.value(QStringLiteral("modified")).toString().toStdString();
+        std::string pathStr = o.value(QStringLiteral("path")).toString().toUtf8().toStdString();
+        std::string name = o.value(QStringLiteral("name")).toString().toUtf8().toStdString();
+        std::string modified = o.value(QStringLiteral("modified")).toString().toUtf8().toStdString();
         if (type == QLatin1String("dir")) {
             out.push_back(Node::makeDir(std::move(pathStr), std::move(name), std::move(modified)));
         } else {

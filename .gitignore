@@ -19,3 +19,5 @@ CMakeLists.txt.user*
 .idea/
 *.swp
 *~
+src/app/web_experiment/dist/
+src/app/web_experiment/node_modules/

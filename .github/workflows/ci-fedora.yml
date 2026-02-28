@@ -91,6 +91,7 @@ jobs:
           cd build
           export QTDIR=/usr/lib64/qt6
           export APPIMAGE_EXTRACT_AND_RUN=1
+          export NO_STRIP=1
           ./linuxdeploy-x86_64.AppImage --appdir AppDir \
             -e AppDir/usr/bin/Y.Disquette \
             -d AppDir/usr/share/applications/y.disquette.desktop \

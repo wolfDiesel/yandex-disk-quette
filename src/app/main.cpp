@@ -135,6 +135,8 @@ int main(int argc, char* argv[]) {
                      "/usr/lib64/qt6/plugins:/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins%s%s",
                      e && *e ? ":" : "", e && *e ? e : "");
         setenv("QT_PLUGIN_PATH", buf, 1);
+        if (!std::getenv("QTWEBENGINE_CHROMIUM_FLAGS"))
+            setenv("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu", 1);
     }
 
     ydisquette::setLogLevel(parseLogLevel(argc, argv));

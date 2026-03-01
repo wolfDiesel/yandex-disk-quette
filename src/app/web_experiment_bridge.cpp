@@ -1,5 +1,8 @@
 #include "web_experiment_bridge.hpp"
 #include "main_content_widget.hpp"
+#include <QApplication>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 namespace ydisquette {
 
@@ -57,6 +60,11 @@ void WebExperimentBridge::startSync() {
     mainContent_->onSyncClicked();
 }
 
+void WebExperimentBridge::openSettings() {
+    if (!mainContent_) return;
+    mainContent_->openSettings();
+}
+
 void WebExperimentBridge::stopSync() {
     if (!mainContent_) return;
     mainContent_->onStopSyncTriggered();
@@ -75,6 +83,18 @@ void WebExperimentBridge::openFileFromCloud(const QString& cloudPath) {
 void WebExperimentBridge::deleteFromDisk(const QString& cloudPath) {
     if (!mainContent_) return;
     mainContent_->deleteFromDisk(cloudPath);
+}
+
+QString WebExperimentBridge::getAboutInfo() const {
+    QJsonObject o;
+    o.insert(QStringLiteral("appName"), QStringLiteral("Y.Disquette"));
+    o.insert(QStringLiteral("author"), QStringLiteral("wolf"));
+    o.insert(QStringLiteral("githubUrl"), QStringLiteral("https://github.com/wolf"));
+    return QString::fromUtf8(QJsonDocument(o).toJson(QJsonDocument::Compact));
+}
+
+void WebExperimentBridge::quitApplication() {
+    QApplication::quit();
 }
 
 void WebExperimentBridge::onDownloadFinished(bool success, const QString& errorMessage) {

@@ -13,6 +13,7 @@ import { useState, useCallback } from 'react'
 
 export function MenuBar() {
   const bridge = useBridge()
+  const setActivePane = useStore((s) => s.setActivePane)
   const syncStatus = useStore((s) => s.statusBar.syncStatus)
   const syncing = syncStatus === 'syncing'
   const [aboutOpen, setAboutOpen] = useState(false)
@@ -46,7 +47,7 @@ export function MenuBar() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            <DropdownMenuItem onClick={() => bridge?.openSettings?.()}>
+            <DropdownMenuItem onClick={() => setActivePane('settings')}>
               <Settings className="size-4 mr-2" />
               Настройки…
             </DropdownMenuItem>

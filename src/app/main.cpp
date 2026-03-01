@@ -188,6 +188,7 @@ int main(int argc, char* argv[]) {
     ydisquette::WebExperimentWindow* webExperimentWindow = new ydisquette::WebExperimentWindow(mainContent, &mainWindow);
     mainWindow.setCentralWidget(webExperimentWindow);
     QMenuBar* menuBar = mainWindow.menuBar();
+    menuBar->hide();
     QMenu* fileMenu = menuBar->addMenu(QObject::tr("File"));
     QAction* settingsAction = fileMenu->addAction(QObject::tr("Settings…"));
     QObject::connect(settingsAction, &QAction::triggered, mainContent, &ydisquette::MainContentWidget::openSettings);

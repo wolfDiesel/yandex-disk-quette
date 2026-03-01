@@ -23,9 +23,12 @@ public:
     Q_INVOKABLE QString chooseSyncFolder(const QString& currentPath);
     Q_INVOKABLE void startSync();
     Q_INVOKABLE void stopSync();
+    Q_INVOKABLE void openSettings();
     Q_INVOKABLE void downloadFile(const QString& cloudPath);
     Q_INVOKABLE void openFileFromCloud(const QString& cloudPath);
     Q_INVOKABLE void deleteFromDisk(const QString& cloudPath);
+    Q_INVOKABLE QString getAboutInfo() const;
+    Q_INVOKABLE void quitApplication();
 
 signals:
     void treeUpdated();

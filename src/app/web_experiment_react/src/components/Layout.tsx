@@ -9,6 +9,7 @@ import { NavPanel } from './NavPanel'
 import { ThemeToggle } from './ThemeToggle'
 import { SettingsPanel } from './SettingsPanel'
 import { StatusBar } from './StatusBar'
+import { MenuBar } from './MenuBar'
 
 export function Layout() {
   const activePane = useStore((s) => s.activePane)
@@ -30,6 +31,7 @@ export function Layout() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background text-foreground overflow-hidden">
+      <MenuBar />
       <div className="shrink-0 flex justify-end items-center pr-3 py-2 border-b border-border bg-muted/30">
         <ThemeToggle onAfterChange={saveLayout} />
       </div>

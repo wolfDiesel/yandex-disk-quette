@@ -46,9 +46,12 @@ export interface BridgeApi {
   chooseSyncFolder: (currentPath: string) => Promise<string>
   startSync: () => void
   stopSync: () => void
+  openSettings: () => void
   downloadFile: (cloudPath: string) => void
   openFileFromCloud: (cloudPath: string) => void
   deleteFromDisk: (cloudPath: string) => void
+  getAboutInfo: () => Promise<string>
+  quitApplication: () => void
   downloadFinished?: { connect: (cb: (success: boolean, errorMessage: string) => void) => void }
   deleteFinished?: { connect: (cb: (success: boolean, errorMessage: string) => void) => void }
 }

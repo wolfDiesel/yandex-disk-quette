@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/">
+        <file alias="web_experiment_react/index.html">web_experiment_react/dist/index.html</file>
+        <file alias="web_experiment_react/assets/index.js">web_experiment_react/dist/assets/index.js</file>
+        <file alias="web_experiment_react/assets/index.css">web_experiment_react/dist/assets/index.css</file>
+    </qresource>
+</RCC>

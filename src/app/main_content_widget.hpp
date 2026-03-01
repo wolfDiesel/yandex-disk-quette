@@ -13,6 +13,9 @@
 #include <QTimer>
 #include <QAction>
 #include <QWidget>
+#include <QNetworkAccessManager>
+#include <QPointer>
+class QNetworkReply;
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -36,10 +39,33 @@ public:
     QByteArray saveState() const;
     void restoreState(const QByteArray& state);
 
+    QByteArray treeAsJson() const;
+    void setPathChecked(const QString& path, bool checked);
+    void requestChildrenForPath(const QString& path);
+    void requestContentsForPath(const QString& path);
+    QString getSettingsJson() const;
+    bool saveSettingsFromJson(const QString& json);
+    QString getLayoutStateJson() const;
+    bool saveLayoutStateFromJson(const QString& json);
+    QString chooseSyncFolder(const QString& startPath);
+
+signals:
+    void childrenForPathLoaded(const QString& path, const QByteArray& json);
+    void contentsForPathLoaded(const QString& path, const QByteArray& json);
+    void statusBarUpdated(const QString& json);
+    void treeRefreshed();
+    void downloadFinished(bool success, const QString& errorMessage);
+    void deleteFinished(bool success, const QString& errorMessage);
+
 public slots:
+    void requestStatusBarUpdate();
+    void ensureInitialLoad();
     void openSettings();
     void onSyncClicked();
     void onStopSyncTriggered();
+    void downloadFile(const QString& cloudPath);
+    void openFileFromCloud(const QString& cloudPath);
+    void deleteFromDisk(const QString& cloudPath);
     void setStopSyncAction(QAction* action);
     void setSyncAction(QAction* action);
 
@@ -59,6 +85,10 @@ private slots:
     void onContentsDoubleClicked(const QModelIndex& index);
     void onRefreshTimer();
     void onCloudCheckTimer();
+    void onInternetCheckTimer();
+    void onInternetCheckFinished();
+    void onSyncThroughput(qint64 bytesPerSecond);
+    void tryResumeSyncAfterOnline();
     void onSyncPathChanged(const QString& path);
     void onSyncLocalDebounce();
     void onIndexStateLoaded(sync::IndexState state);
@@ -76,8 +106,12 @@ private:
     void refreshQuotaLabel();
     void updateStatusBar(const disk_tree::Quota& q);
     void updateSyncIndicator();
+    void emitStatusBarUpdate();
     void updateTreeSizeColumnWidth();
     void navigateTreeToPath(const QString& path);
+    void refreshTreeCheckStatesFromStore();
+    void setCheckStateRecursive(QStandardItem* nameItem, const std::vector<std::string>& paths);
+    void applySelectionChangeSideEffects(const std::string& pathStr, bool nowChecked);
     static QString formatBytes(int64_t bytes);
 
     CompositionRoot* root_;
@@ -88,6 +122,11 @@ private:
     QTimer* refreshTimer_;
     QTimer* cloudCheckTimer_;
     bool cloudCheckTimerStarted_ = false;
+    QTimer* internetCheckTimer_ = nullptr;
+    QNetworkAccessManager* internetCheckNam_ = nullptr;
+    QPointer<QNetworkReply> internetCheckReply_;
+    bool online_ = true;
+    double lastSyncSpeed_ = 0;
     QFileSystemWatcher* syncWatcher_ = nullptr;
     QTimer* syncLocalDebounceTimer_ = nullptr;
     QSet<QString> syncWatchedPaths_;
@@ -101,6 +140,8 @@ private:
     QAction* stopSyncAction_ = nullptr;
     QAction* syncAction_ = nullptr;
     bool syncFolderPromptShown_ = false;
+    int64_t lastQuotaUsed_ = 0;
+    int64_t lastQuotaTotal_ = 0;
 };
 
 }  // namespace ydisquette

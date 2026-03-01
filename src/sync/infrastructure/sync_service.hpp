@@ -52,6 +52,7 @@ signals:
     void tokenExpired();
     void syncError(QString message);
     void syncProgressMessage(QString message);
+    void syncThroughput(qint64 bytesPerSecond);
     void indexStateLoaded(IndexState state);
     void pathsCreatedInCloud(const std::vector<std::string>& cloudPaths);
     void stopRequested();
@@ -61,6 +62,7 @@ private slots:
     void onWorkerTokenExpired();
     void onWorkerSyncError(QString message);
     void onWorkerSyncProgressMessage(QString message);
+    void onWorkerSyncThroughput(qint64 bytesPerSecond);
     void onLocalToCloudFinished(const std::vector<std::string>& selectedPaths,
                                 const std::string& syncPath,
                                 const std::string& accessToken);

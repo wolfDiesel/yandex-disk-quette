@@ -17,7 +17,7 @@ jobs:
           dnf install -y dnf-plugins-core
           dnf config-manager --set-disabled fedora-cisco-openh264 || true
           dnf install -y \
-            git gcc-c++ cmake \
+            git gcc-c++ cmake nodejs npm \
             qt6-qtbase-devel qt6-qttools-devel qt6-qtwebengine-devel \
             mesa-libGL-devel libxkbcommon-devel vulkan-headers
 
@@ -42,7 +42,7 @@ jobs:
           dnf install -y dnf-plugins-core
           dnf config-manager --set-disabled fedora-cisco-openh264 || true
           dnf install -y \
-            git gcc-c++ cmake python3 wget file ImageMagick \
+            git gcc-c++ cmake python3 wget file ImageMagick nodejs npm \
             qt6-qtbase-devel qt6-qttools-devel qt6-qtwebengine-devel \
             mesa-libGL-devel libxkbcommon-devel vulkan-headers
 
@@ -63,6 +63,10 @@ jobs:
           cp build/Y.Disquette build/AppDir/usr/bin/
           convert res/icon.png -resize 256x256 build/AppDir/usr/share/icons/hicolor/256x256/apps/y_disquette.png
           printf '[Desktop Entry]\nType=Application\nName=Y.Disquette\nExec=Y.Disquette\nIcon=y_disquette\nCategories=Network;\n' > build/AppDir/usr/share/applications/y.disquette.desktop
+          mkdir -p build/AppDir/usr/share/qt6
+          cp -r /usr/share/qt6/resources build/AppDir/usr/share/qt6/
+          printf '#!/bin/sh\n' > build/AppDir/apprun-hooks/00-webengine-resources.sh
+          printf 'export QTWEBENGINE_RESOURCES_PATH="${APPDIR}/usr/share/qt6/resources"\n' >> build/AppDir/apprun-hooks/00-webengine-resources.sh
           printf '%s\n' \
             '#!/bin/sh' \
             'SYS_QTLIB="/usr/lib64/qt6:/usr/lib/qt6:/usr/lib/x86_64-linux-gnu/qt6"' \
@@ -70,33 +74,56 @@ jobs:
             'export LD_LIBRARY_PATH="${SYS_QTLIB}:${SYS_QTLIB}/lib:/usr/lib64:/usr/lib:${LD_LIBRARY_PATH}"' \
             'export QT_PLUGIN_PATH="${SYS_QTPLUGINS}:${QT_PLUGIN_PATH}"' \
             > build/AppDir/apprun-hooks/01-system-qt-plugins.sh
-          chmod +x build/AppDir/apprun-hooks/01-system-qt-plugins.sh
+          chmod +x build/AppDir/apprun-hooks/00-webengine-resources.sh build/AppDir/apprun-hooks/01-system-qt-plugins.sh
 
       - name: Download linuxdeploy and Qt plugin
         run: |
           cd build
-          wget -q -O linuxdeploy-x86_64.AppImage \
+          curl -sL -o linuxdeploy-x86_64.AppImage \
             https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          wget -q -O linuxdeploy-plugin-qt-x86_64.AppImage \
+          curl -sL -o linuxdeploy-plugin-qt-x86_64.AppImage \
             https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
           chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage
+
+      - name: Deploy to AppDir
+        run: |
+          cd build
+          export QTDIR=/usr/lib64/qt6
+          export APPIMAGE_EXTRACT_AND_RUN=1
+          export NO_STRIP=1
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir \
+            -e AppDir/usr/bin/Y.Disquette \
+            -d AppDir/usr/share/applications/y.disquette.desktop \
+            -i AppDir/usr/share/icons/hicolor/256x256/apps/y_disquette.png \
+            --plugin qt
+
+      - name: Replace AppRun with wrapper for WebEngine env
+        run: |
+          cd build/AppDir
+          rm -f AppRun
+          printf '%s\n' \
+            '#!/bin/sh' \
+            'root="$(cd "$(dirname "$0")" && pwd)"' \
+            'export LANG=C.UTF-8 LC_ALL=C.UTF-8' \
+            'export LD_LIBRARY_PATH="$root/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"' \
+            'export QTWEBENGINE_RESOURCES_PATH="${APPDIR:-$root}/usr/share/qt6/resources"' \
+            'export QTWEBENGINE_CHROMIUM_FLAGS="${QTWEBENGINE_CHROMIUM_FLAGS:---lang=en-US --disable-gpu --disable-features=PDFViewer}"' \
+            'exec "$root/usr/bin/Y.Disquette" "$@"' \
+            > AppRun
+          chmod +x AppRun
 
       - name: Build AppImage
         id: appimage
         env:
           VERSION: ${{ github.ref_name }}
           APPIMAGE_EXTRACT_AND_RUN: 1
-          NO_STRIP: 1
         run: |
           cd build
           ver="${VERSION#v}"
-          export QTDIR=/usr/lib64/qt6
-          export LDAI_OUTPUT="Y.Disquette-${ver}-x86_64.AppImage"
-          ./linuxdeploy-x86_64.AppImage --appdir AppDir \
-            -e AppDir/usr/bin/Y.Disquette \
-            -d AppDir/usr/share/applications/y.disquette.desktop \
-            -i AppDir/usr/share/icons/hicolor/256x256/apps/y_disquette.png \
-            --plugin qt --output appimage
+          curl -sL -o appimagetool-x86_64.AppImage \
+            "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+          chmod +x appimagetool-x86_64.AppImage
+          ./appimagetool-x86_64.AppImage -n AppDir "Y.Disquette-${ver}-x86_64.AppImage"
           test -f "Y.Disquette-${ver}-x86_64.AppImage" || (echo "AppImage was not created" && exit 1)
           echo "name=Y.Disquette-${ver}-x86_64.AppImage" >> "$GITHUB_OUTPUT"
           cp -f "Y.Disquette-${ver}-x86_64.AppImage" "$GITHUB_WORKSPACE/"

@@ -4,7 +4,7 @@ project(Y.Disquette VERSION 0.0.36 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets Network Sql WebEngineCore WebEngineWidgets LinguistTools)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets Network Sql WebEngineCore WebEngineWidgets WebChannel LinguistTools)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)

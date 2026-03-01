@@ -1,6 +1,7 @@
 #include "composition_root.hpp"
 #include "main_content_widget.hpp"
 #include "main_window.hpp"
+#include "web_experiment_window.hpp"
 #include "oauth_credentials.hpp"
 #include "auth/ui/login_widget.hpp"
 #include "auth/infrastructure/oauth_callback_scheme_handler.hpp"
@@ -134,6 +135,8 @@ int main(int argc, char* argv[]) {
                      "/usr/lib64/qt6/plugins:/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins%s%s",
                      e && *e ? ":" : "", e && *e ? e : "");
         setenv("QT_PLUGIN_PATH", buf, 1);
+        if (!std::getenv("QTWEBENGINE_CHROMIUM_FLAGS"))
+            setenv("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu", 1);
     }
 
     ydisquette::setLogLevel(parseLogLevel(argc, argv));
@@ -182,7 +185,8 @@ int main(int argc, char* argv[]) {
     mainWindow.setWindowIcon(app.windowIcon());
     mainWindow.setMinimumSize(400, 300);
     mainWindow.resize(800, 600);
-    mainWindow.setCentralWidget(mainContent);
+    ydisquette::WebExperimentWindow* webExperimentWindow = new ydisquette::WebExperimentWindow(mainContent, &mainWindow);
+    mainWindow.setCentralWidget(webExperimentWindow);
     QMenuBar* menuBar = mainWindow.menuBar();
     QMenu* fileMenu = menuBar->addMenu(QObject::tr("File"));
     QAction* settingsAction = fileMenu->addAction(QObject::tr("Settings…"));
@@ -194,7 +198,11 @@ int main(int argc, char* argv[]) {
     stopSyncAction->setEnabled(false);
     QObject::connect(stopSyncAction, &QAction::triggered, mainContent, &ydisquette::MainContentWidget::onStopSyncTriggered);
     mainContent->setStopSyncAction(stopSyncAction);
+    fileMenu->addSeparator();
+    QAction* quitAction = fileMenu->addAction(QObject::tr("Quit"));
+    QObject::connect(quitAction, &QAction::triggered, &app, &QApplication::quit);
     loadConfigIntoApp(root, &mainWindow, mainContent);
+    mainContent->ensureInitialLoad();
 
     QString clientId, clientSecret, redirectUri;
     ydisquette::getBuildTimeOAuthCredentials(&clientId, &clientSecret, &redirectUri);

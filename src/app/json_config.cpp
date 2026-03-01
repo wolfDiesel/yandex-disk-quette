@@ -38,6 +38,14 @@ static JsonConfig loadFromFile(const QString& path) {
     c.accessToken = o.value(QStringLiteral("access_token")).toString();
     c.refreshToken = o.value(QStringLiteral("refresh_token")).toString();
     c.windowGeometry = QByteArray::fromBase64(o.value(QStringLiteral("window_geometry")).toString().toUtf8());
+    c.webExperimentGeometry = QByteArray::fromBase64(o.value(QStringLiteral("web_experiment_geometry")).toString().toUtf8());
+    c.webExperimentSidebarCollapsed = o.value(QStringLiteral("web_experiment_sidebar_collapsed")).toBool(false);
+    c.debugConsole = o.value(QStringLiteral("debug_console")).toBool(false);
+    int tw = o.value(QStringLiteral("web_experiment_tree_width")).toInt(280);
+    c.webExperimentTreeWidth = (tw >= 160 && tw <= 600) ? tw : 280;
+    QString theme = o.value(QStringLiteral("web_experiment_theme")).toString();
+    if (theme == QStringLiteral("light") || theme == QStringLiteral("dark") || theme == QStringLiteral("system"))
+        c.webExperimentTheme = theme;
     c.splitterState = QByteArray::fromBase64(o.value(QStringLiteral("splitter_state")).toString().toUtf8());
     c.syncFolder = o.value(QStringLiteral("sync_folder")).toString();
     int mr = o.value(QStringLiteral("sync_max_retries")).toInt(3);
@@ -63,6 +71,12 @@ static bool saveToFile(const QString& path, const JsonConfig& c) {
     o.insert(QStringLiteral("access_token"), c.accessToken);
     o.insert(QStringLiteral("refresh_token"), c.refreshToken);
     o.insert(QStringLiteral("window_geometry"), QString::fromUtf8(c.windowGeometry.toBase64()));
+    o.insert(QStringLiteral("web_experiment_geometry"), QString::fromUtf8(c.webExperimentGeometry.toBase64()));
+    o.insert(QStringLiteral("web_experiment_sidebar_collapsed"), c.webExperimentSidebarCollapsed);
+    o.insert(QStringLiteral("debug_console"), c.debugConsole);
+    o.insert(QStringLiteral("web_experiment_tree_width"), c.webExperimentTreeWidth);
+    if (!c.webExperimentTheme.isEmpty())
+        o.insert(QStringLiteral("web_experiment_theme"), c.webExperimentTheme);
     o.insert(QStringLiteral("splitter_state"), QString::fromUtf8(c.splitterState.toBase64()));
     o.insert(QStringLiteral("sync_folder"), c.syncFolder);
     o.insert(QStringLiteral("sync_max_retries"), c.maxRetries);

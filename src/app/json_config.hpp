@@ -10,6 +10,11 @@ struct JsonConfig {
     QString accessToken;
     QString refreshToken;
     QByteArray windowGeometry;
+    QByteArray webExperimentGeometry;
+    bool webExperimentSidebarCollapsed = false;
+    bool debugConsole = false;
+    int webExperimentTreeWidth = 280;
+    QString webExperimentTheme;
     QByteArray splitterState;
     QString syncFolder;
     int maxRetries = 3;

@@ -8,6 +8,7 @@
 #include "shared/app_log.hpp"
 #include <QDateTime>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFileInfo>
 #include <QNetworkAccessManager>
 #include <QUrlQuery>
@@ -69,13 +70,18 @@ void SyncWorker::doSync(const std::vector<std::string>& selectedPaths, const std
         + QStringLiteral(" syncPath=") + (syncPath.empty() ? QStringLiteral("(empty)") : QString::fromStdString(syncPath)));
 
     emit statusChanged(SyncStatus::Syncing);
+    QElapsedTimer throughputTimer;
+    throughputTimer.start();
+    qint64 throughputBytes = 0;
 
     if (selectedPaths.empty() || syncPath.empty()) {
+        emit syncThroughput(0);
         emit statusChanged(SyncStatus::Idle);
         return;
     }
     if (accessToken.empty()) {
         emit syncError(QStringLiteral("No token received by worker (empty)."));
+        emit syncThroughput(0);
         emit statusChanged(SyncStatus::Error);
         return;
     }
@@ -91,6 +97,7 @@ void SyncWorker::doSync(const std::vector<std::string>& selectedPaths, const std
     auth::ApiResponse probe = apiClient->get("/resources", probeQuery);
     if (probe.statusCode == 401) {
         emit tokenExpired();
+        emit syncThroughput(0);
         emit statusChanged(SyncStatus::Error);
         return;
     }
@@ -137,6 +144,7 @@ void SyncWorker::doSync(const std::vector<std::string>& selectedPaths, const std
         QString localDir = localRoot + cloudPathToLocal(cloudPath).mid(1);
         if (!QDir().mkpath(localDir)) {
             emit syncError(QStringLiteral("Failed to create local directory: ") + localDir);
+            emit syncThroughput(0);
             emit statusChanged(SyncStatus::Error);
             return false;
         }
@@ -150,6 +158,7 @@ void SyncWorker::doSync(const std::vector<std::string>& selectedPaths, const std
                 if (!cr.success && cr.httpStatus != 409) {
                     emit syncError(QStringLiteral("Create folder failed (HTTP %1). Yandex: %2")
                                        .arg(cr.httpStatus).arg(cr.errorMessage));
+                    emit syncThroughput(0);
                     emit statusChanged(SyncStatus::Error);
                     return false;
                 }
@@ -188,6 +197,11 @@ void SyncWorker::doSync(const std::vector<std::string>& selectedPaths, const std
                     }
                     emit syncProgressMessage(QStringLiteral("cloud→local ") + QString::fromStdString(remotePath));
                     DiskResourceResult dr = client.downloadFile(remotePath, localPath);
+                    if (dr.success) {
+                        throughputBytes += static_cast<qint64>(node->size);
+                        qint64 ms = throughputTimer.elapsed();
+                        emit syncThroughput(ms > 0 ? (throughputBytes * 1000 / ms) : 0);
+                    }
                     if (!dr.success) {
                         if (useIndex) {
                             QString rel = toRelativePath(localPath);
@@ -230,6 +244,7 @@ void SyncWorker::doSync(const std::vector<std::string>& selectedPaths, const std
         emit syncProgressMessage(QString::fromStdString(cloudPath));
         if (!syncFolder(cloudPath)) {
             if (useIndex) { index.rollback(); index.close(); }
+            emit syncThroughput(0);
             emit statusChanged(stopRequested_ ? SyncStatus::Idle : SyncStatus::Error);
             return;
         }
@@ -241,12 +256,16 @@ void SyncWorker::doSync(const std::vector<std::string>& selectedPaths, const std
         }
         index.close();
     }
+    emit syncThroughput(0);
     emit statusChanged(SyncStatus::Idle);
 }
 
 void SyncWorker::doSyncLocalToCloud(const std::vector<std::string>& selectedPaths, const std::string& syncPath,
                                     const std::string& accessToken, const QString& indexDbPath, int maxRetries) {
     stopRequested_ = false;
+    QElapsedTimer throughputTimer;
+    throughputTimer.start();
+    qint64 throughputBytes = 0;
     if (selectedPaths.empty() || syncPath.empty() || accessToken.empty()) {
         return;
     }
@@ -259,6 +278,7 @@ void SyncWorker::doSyncLocalToCloud(const std::vector<std::string>& selectedPath
     auth::ApiResponse probe = apiClient->get("/resources", probeQuery);
     if (probe.statusCode == 401) {
         emit tokenExpired();
+        emit syncThroughput(0);
         emit statusChanged(SyncStatus::Error);
         return;
     }
@@ -323,6 +343,7 @@ void SyncWorker::doSyncLocalToCloud(const std::vector<std::string>& selectedPath
         }
         if (!createdList.empty()) {
             emit pathsCreatedInCloud(createdList);
+            emit syncThroughput(0);
             emit statusChanged(SyncStatus::Idle);
             return;
         }
@@ -448,6 +469,9 @@ void SyncWorker::doSyncLocalToCloud(const std::vector<std::string>& selectedPath
                         emit syncError(QStringLiteral("Upload failed (local→cloud): ") + ur.errorMessage);
                         continue;
                     }
+                    throughputBytes += QFileInfo(localPath).size();
+                    qint64 ms = throughputTimer.elapsed();
+                    emit syncThroughput(ms > 0 ? (throughputBytes * 1000 / ms) : 0);
                     if (useIndex) {
                         QString rel = toRelativePath(localPath);
                         if (!rel.isEmpty()) {
@@ -494,6 +518,7 @@ void SyncWorker::doSyncLocalToCloud(const std::vector<std::string>& selectedPath
         if (!syncLocalToCloudFolder(localDir, cloudPath)) {
             if (useIndex) index.rollback();
             index.close();
+            emit syncThroughput(0);
             emit statusChanged(stopRequested_ ? SyncStatus::Idle : SyncStatus::Error);
             return;
         }
@@ -520,10 +545,12 @@ void SyncWorker::doSyncLocalToCloud(const std::vector<std::string>& selectedPath
     if (!newTopLevelPaths.empty())
         emit pathsCreatedInCloud(newTopLevelPaths);
 
-    if (stopRequested_)
+    if (stopRequested_) {
+        emit syncThroughput(0);
         emit statusChanged(SyncStatus::Idle);
-    else
+    } else {
         emit localToCloudFinished(selectedPaths, syncPath, accessToken);
+    }
 }
 
 void SyncWorker::loadIndexState(const QString& indexDbPath) {

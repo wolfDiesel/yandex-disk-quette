@@ -13,6 +13,18 @@ function setChildrenAtPath(nodes: TreeNode[], path: string, children: TreeNode[]
   })
 }
 
+function setCheckedAtPath(nodes: TreeNode[], path: string, checked: boolean): TreeNode[] {
+  return nodes.map((n) => {
+    if (n.path !== path) {
+      if (n.children) {
+        return { ...n, children: setCheckedAtPath(n.children, path, checked) }
+      }
+      return n
+    }
+    return { ...n, checked }
+  })
+}
+
 const defaultSettings: SettingsForm = {
   syncPath: '',
   refreshIntervalSec: 60,
@@ -59,6 +71,7 @@ interface AppActions {
   setViewMode: (mode: 'list' | 'table' | 'icons') => void
   showToast: (message: string | null) => void
   setSelectedTreePath: (path: string | null) => void
+  updateNodeChecked: (path: string, checked: boolean) => void
   toggleExpanded: (path: string) => void
   expandPath: (path: string) => void
   setTreeWidth: (width: number) => void
@@ -139,6 +152,11 @@ export const useStore = create<AppState & AppActions>((set) => ({
   showToast: (toastMessage) => set({ toastMessage }),
 
   setSelectedTreePath: (selectedTreePath) => set({ selectedTreePath }),
+
+  updateNodeChecked: (path, checked) =>
+    set((state) => ({
+      treeData: setCheckedAtPath(state.treeData, path, checked),
+    })),
 
   toggleExpanded: (path) =>
     set((state) => {

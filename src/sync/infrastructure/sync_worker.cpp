@@ -70,6 +70,7 @@ void SyncWorker::doSync(const std::vector<std::string>& selectedPaths, const std
         + QStringLiteral(" syncPath=") + (syncPath.empty() ? QStringLiteral("(empty)") : QString::fromStdString(syncPath)));
 
     emit statusChanged(SyncStatus::Syncing);
+    emit syncProgressMessage(QStringLiteral("sync started paths=") + QString::number(selectedPaths.size()));
     QElapsedTimer throughputTimer;
     throughputTimer.start();
     qint64 throughputBytes = 0;
@@ -196,11 +197,18 @@ void SyncWorker::doSync(const std::vector<std::string>& selectedPaths, const std
                         }
                     }
                     emit syncProgressMessage(QStringLiteral("cloud→local ") + QString::fromStdString(remotePath));
+                    ydisquette::logToFile(QStringLiteral("[Sync] download start ") + QString::fromStdString(remotePath)
+                        + QStringLiteral(" size=") + QString::number(node ? static_cast<qint64>(node->size) : 0));
+                    QElapsedTimer fileTimer;
+                    fileTimer.start();
                     DiskResourceResult dr = client.downloadFile(remotePath, localPath);
                     if (dr.success) {
+                        ydisquette::logToFile(QStringLiteral("[Sync] download OK ") + QString::fromStdString(remotePath));
+                        emit syncProgressMessage(QStringLiteral("cloud→local OK ") + QString::fromStdString(remotePath));
                         throughputBytes += static_cast<qint64>(node->size);
-                        qint64 ms = throughputTimer.elapsed();
-                        emit syncThroughput(ms > 0 ? (throughputBytes * 1000 / ms) : 0);
+                        qint64 fileMs = qMax(qint64(1), fileTimer.elapsed());
+                        qint64 fileSize = static_cast<qint64>(node->size);
+                        emit syncThroughput(fileSize * 1000 / fileMs);
                     }
                     if (!dr.success) {
                         if (useIndex) {
@@ -229,7 +237,8 @@ void SyncWorker::doSync(const std::vector<std::string>& selectedPaths, const std
                         rel = rel.mid(1);
                     if (!rel.isEmpty()) {
                         QFileInfo fi2(localPath);
-                        if (!index.set(syncRoot, rel, fi2.lastModified().toSecsSinceEpoch(), fi2.size()))
+                        if (!index.set(syncRoot, rel, fi2.lastModified().toSecsSinceEpoch(), fi2.size(),
+                                       QString::fromUtf8(FileStatus::SYNCED), 0))
                             ydisquette::logToFile(QStringLiteral("[Sync] index set FAIL (cloud→local) ") + rel);
                         flushIndex();
                     }
@@ -449,8 +458,17 @@ void SyncWorker::doSyncLocalToCloud(const std::vector<std::string>& selectedPath
                             }
                         }
                     }
-                    emit syncProgressMessage(QStringLiteral("local→cloud ") + QString::fromStdString(childCloudPath));
-                    DiskResourceResult ur = client.uploadFile(childCloudPath, localPath);
+                    std::string originalCloudPath = childCloudPath;
+                    std::string tempCloudPath = originalCloudPath + ".tmp-upload";
+                    emit syncProgressMessage(QStringLiteral("local→cloud ") + QString::fromStdString(tempCloudPath));
+                    qint64 fileSize = QFileInfo(localPath).size();
+                    ydisquette::logToFile(QStringLiteral("[Sync] upload start ") + QString::fromStdString(tempCloudPath)
+                        + QStringLiteral(" size=") + QString::number(fileSize));
+                    QElapsedTimer fileTimer;
+                    fileTimer.start();
+                    DiskResourceResult ur = client.uploadFile(tempCloudPath, localPath, [this](qint64 bytesPerSec) {
+                        emit syncThroughput(bytesPerSec);
+                    });
                     if (!ur.success) {
                         if (useIndex) {
                             QString rel = toRelativePath(localPath);
@@ -469,9 +487,20 @@ void SyncWorker::doSyncLocalToCloud(const std::vector<std::string>& selectedPath
                         emit syncError(QStringLiteral("Upload failed (local→cloud): ") + ur.errorMessage);
                         continue;
                     }
+                    DiskResourceResult delExisting = client.deleteResource(originalCloudPath);
+                    Q_UNUSED(delExisting);
+                    DiskResourceResult mr = client.moveResource(tempCloudPath, originalCloudPath);
+                    if (!mr.success) {
+                        emit syncError(QStringLiteral("Move failed (local→cloud): ") + mr.errorMessage);
+                        continue;
+                    }
+                    QString relOk = toRelativePath(localPath);
+                    if (!relOk.isEmpty())
+                        ydisquette::logToFile(QStringLiteral("[Sync] upload OK ") + relOk);
+                    emit syncProgressMessage(QStringLiteral("local→cloud OK ") + QString::fromStdString(originalCloudPath));
                     throughputBytes += QFileInfo(localPath).size();
-                    qint64 ms = throughputTimer.elapsed();
-                    emit syncThroughput(ms > 0 ? (throughputBytes * 1000 / ms) : 0);
+                    qint64 fileMs = qMax(qint64(1), fileTimer.elapsed());
+                    emit syncThroughput(fileSize * 1000 / fileMs);
                     if (useIndex) {
                         QString rel = toRelativePath(localPath);
                         if (!rel.isEmpty()) {

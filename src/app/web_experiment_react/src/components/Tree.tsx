@@ -86,6 +86,9 @@ function TreeNodeRow({
   const hasChildren = node.children && node.children.length > 0
   const childrenLoaded = node.children !== undefined
   const liRef = useRef<HTMLLIElement>(null)
+  const setContentsPathLoading = useStore((s) => s.setContentsPathLoading)
+  const setSelectedTreePath = useStore((s) => s.setSelectedTreePath)
+  const expandPath = useStore((s) => s.expandPath)
 
   useEffect(() => {
     if (isSelected && liRef.current) {
@@ -107,6 +110,13 @@ function TreeNodeRow({
 
   const handleCheckboxChange = (checked: boolean | 'indeterminate') => {
     bridge?.setPathChecked(path, checked === true)
+    if (checked === true) {
+      setContentsPathLoading(path)
+      bridge?.requestContentsForPath(path)
+      bridge?.requestChildrenForPath(path)
+      setSelectedTreePath(path)
+      expandPath(path)
+    }
   }
 
   return (

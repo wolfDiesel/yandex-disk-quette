@@ -37,7 +37,10 @@ public:
                             std::function<void(ApiResponse)> cb) const;
     ApiResponse put(const std::string& path, const QByteArray& body = QByteArray()) const;
     ApiResponse putNoBody(const std::string& pathWithQuery) const;
+    ApiResponse postNoBody(const std::string& pathWithQuery) const;
     ApiResponse putToAbsoluteUrl(const QString& absoluteUrl, const QByteArray& body) const;
+    ApiResponse putToAbsoluteUrl(const QString& absoluteUrl, const QByteArray& body,
+                                 std::function<void(qint64 bytesPerSecond)> onProgress) const;
     ApiResponse deleteResource(const std::string& path) const;
     void deleteResourceAsync(const std::string& path,
                              std::function<void(ApiResponse)> cb) const;

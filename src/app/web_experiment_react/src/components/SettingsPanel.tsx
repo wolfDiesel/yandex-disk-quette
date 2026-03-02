@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useBridge } from '@/contexts/BridgeContext'
 import { useStore } from '@/store/useStore'
 import { Button } from '@/components/ui/button'
@@ -10,7 +10,9 @@ export function SettingsPanel() {
   const bridge = useBridge()
   const settingsForm = useStore((s) => s.settingsForm)
   const setSettingsForm = useStore((s) => s.setSettingsForm)
-
+  const showToastStore = useStore((s) => s.showToast)
+  const savedSyncPathRef = useRef('')
+  const [showConfirmChangePath, setShowConfirmChangePath] = useState(false)
   const activePane = useStore((s) => s.activePane)
 
   useEffect(() => {
@@ -18,8 +20,10 @@ export function SettingsPanel() {
     bridge.getSettings().then((json) => {
       try {
         const data = JSON.parse(json)
+        const syncPath = data.syncPath ?? ''
+        savedSyncPathRef.current = syncPath
         setSettingsForm({
-          syncPath: data.syncPath ?? '',
+          syncPath,
           refreshIntervalSec: data.refreshIntervalSec ?? 60,
           cloudCheckIntervalSec: data.cloudCheckIntervalSec ?? 30,
           maxRetries: data.maxRetries ?? 3,
@@ -35,14 +39,48 @@ export function SettingsPanel() {
   const handleBrowse = () => {
     if (!bridge?.chooseSyncFolder) return
     bridge.chooseSyncFolder(settingsForm.syncPath).then((path) => {
-      if (path) setSettingsForm({ syncPath: path })
+      if (path) {
+        setSettingsForm({ syncPath: path })
+        return
+      }
+      const errVal = bridge.getLastChooseFolderError?.()
+      Promise.resolve(errVal).then((err) => {
+        if (err === 'not_empty') {
+          showToastStore('Папка должна быть пустой.')
+        }
+      })
+    })
+  }
+
+  const doSave = () => {
+    if (!bridge?.saveSettings) return
+    bridge.saveSettings(JSON.stringify(settingsForm)).then((ok: boolean) => {
+      if (ok) {
+        savedSyncPathRef.current = settingsForm.syncPath
+        setShowConfirmChangePath(false)
+        return
+      }
+      const errVal = bridge.getLastSaveSettingsError?.()
+      Promise.resolve(errVal).then((err) => {
+        if (err === 'not_empty') {
+          showToastStore('Папка должна быть пустой.')
+        } else if (err === 'not_exists') {
+          showToastStore('Папка не существует.')
+        }
+      })
     })
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!bridge?.saveSettings) return
-    bridge.saveSettings(JSON.stringify(settingsForm))
+    const newPath = settingsForm.syncPath.trim()
+    const savedPath = savedSyncPathRef.current.trim()
+    if (savedPath && newPath !== savedPath) {
+      setShowConfirmChangePath(true)
+      return
+    }
+    doSave()
   }
 
   return (
@@ -124,6 +162,31 @@ export function SettingsPanel() {
           </div>
         </form>
       </div>
+      {showConfirmChangePath && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setShowConfirmChangePath(false)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="bg-background border border-border rounded-lg shadow-lg p-6 max-w-sm w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-sm mb-4">
+              При смене папки синхронизации индекс текущей папки будет очищен. Продолжить?
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowConfirmChangePath(false)}>
+                Отмена
+              </Button>
+              <Button size="sm" onClick={doSave}>
+                Продолжить
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

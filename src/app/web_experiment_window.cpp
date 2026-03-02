@@ -58,6 +58,7 @@ WebExperimentWindow::WebExperimentWindow(MainContentWidget* mainContent, QWidget
     channel_->registerObject(QStringLiteral("bridge"), bridge_);
     page_->setWebChannel(channel_);
     connect(bridge_, &WebExperimentBridge::treeUpdated, this, &WebExperimentWindow::injectTree);
+    connect(mainContent_, &MainContentWidget::appendConsoleLog, this, &WebExperimentWindow::appendConsoleLog, Qt::QueuedConnection);
     connect(mainContent_, &MainContentWidget::childrenForPathLoaded, this, &WebExperimentWindow::onChildrenForPathLoaded, Qt::QueuedConnection);
     connect(mainContent_, &MainContentWidget::contentsForPathLoaded, this, &WebExperimentWindow::onContentsForPathLoaded, Qt::QueuedConnection);
     connect(mainContent_, &MainContentWidget::statusBarUpdated, this, &WebExperimentWindow::onStatusBarUpdated, Qt::QueuedConnection);
@@ -105,6 +106,11 @@ void WebExperimentWindow::onJsConsole(int level, const QString& message, int lin
 }
 
 WebExperimentWindow::~WebExperimentWindow() = default;
+
+void WebExperimentWindow::appendConsoleLog(const QString& line) {
+    if (consoleEdit_)
+        consoleEdit_->appendPlainText(line);
+}
 
 void WebExperimentWindow::onLoadFinished(bool ok) {
     if (ok) {

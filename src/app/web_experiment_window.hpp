@@ -31,6 +31,7 @@ private slots:
     void onChildrenForPathLoaded(const QString& path, const QByteArray& json);
     void onContentsForPathLoaded(const QString& path, const QByteArray& json);
     void onStatusBarUpdated(const QString& json);
+    void appendConsoleLog(const QString& line);
 
 private:
     void injectTree();

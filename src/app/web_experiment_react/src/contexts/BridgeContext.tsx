@@ -64,6 +64,11 @@ export function BridgeProvider({ children }: { children: ReactNode }) {
             }
           })
         }
+        if (b.pathCheckedChanged?.connect) {
+          b.pathCheckedChanged.connect((path: string, checked: boolean) => {
+            useStore.getState().updateNodeChecked(path, checked)
+          })
+        }
         window.__onBridgeReady__?.()
       })
     }

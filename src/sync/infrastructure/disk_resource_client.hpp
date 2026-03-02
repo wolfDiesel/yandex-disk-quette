@@ -24,7 +24,10 @@ public:
     void downloadFileAsync(const std::string& remotePath, const QString& localPath,
                           std::function<void(DiskResourceResult)> cb);
     DiskResourceResult uploadFile(const std::string& remotePath, const QString& localPath);
+    DiskResourceResult uploadFile(const std::string& remotePath, const QString& localPath,
+                                 std::function<void(qint64 bytesPerSecond)> onProgress);
     DiskResourceResult deleteResource(const std::string& path);
+    DiskResourceResult moveResource(const std::string& fromPath, const std::string& toPath);
     void deleteResourceAsync(const std::string& path,
                              std::function<void(DiskResourceResult)> cb);
 

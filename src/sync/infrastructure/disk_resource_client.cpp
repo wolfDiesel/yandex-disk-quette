@@ -132,6 +132,11 @@ void DiskResourceClient::downloadFileAsync(const std::string& remotePath, const 
 }
 
 DiskResourceResult DiskResourceClient::uploadFile(const std::string& remotePath, const QString& localPath) {
+    return uploadFile(remotePath, localPath, std::function<void(qint64)>());
+}
+
+DiskResourceResult DiskResourceClient::uploadFile(const std::string& remotePath, const QString& localPath,
+                                                 std::function<void(qint64 bytesPerSecond)> onProgress) {
     QFile f(localPath);
     if (!f.open(QIODevice::ReadOnly)) {
         DiskResourceResult out;
@@ -164,7 +169,7 @@ DiskResourceResult DiskResourceClient::uploadFile(const std::string& remotePath,
         out.errorMessage = QStringLiteral("No href in upload response");
         return out;
     }
-    auth::ApiResponse step2 = api_.putToAbsoluteUrl(href, data);
+    auth::ApiResponse step2 = onProgress ? api_.putToAbsoluteUrl(href, data, onProgress) : api_.putToAbsoluteUrl(href, data);
     out.success = step2.ok();
     out.httpStatus = step2.statusCode;
     if (!step2.ok()) {
@@ -180,11 +185,36 @@ DiskResourceResult DiskResourceClient::deleteResource(const std::string& path) {
     q.addQueryItem(QStringLiteral("path"), QString::fromStdString(norm));
     auth::ApiResponse res = api_.deleteResource("/resources?" + q.query(QUrl::FullyEncoded).toStdString());
     DiskResourceResult out;
-    out.success = res.ok() || res.statusCode == 202;
+    out.httpStatus = res.statusCode;
+    if (res.ok() || res.statusCode == 202) {
+        out.success = true;
+    } else if (res.statusCode == 404) {
+        out.success = true;
+    } else {
+        out.success = false;
+        out.errorMessage = QString::fromStdString(res.body);
+        ydisquette::logToFile(QStringLiteral("[Sync] delete ") + QString::fromStdString(path)
+            + QStringLiteral(" FAIL: ") + QString::number(out.httpStatus) + QChar(' ') + out.errorMessage);
+    }
+    return out;
+}
+
+DiskResourceResult DiskResourceClient::moveResource(const std::string& fromPath, const std::string& toPath) {
+    const std::string normFrom = auth::normalizePathForApi(fromPath);
+    const std::string normTo = auth::normalizePathForApi(toPath);
+    QUrlQuery q;
+    q.addQueryItem(QStringLiteral("from"), QString::fromStdString(normFrom));
+    q.addQueryItem(QStringLiteral("path"), QString::fromStdString(normTo));
+    q.addQueryItem(QStringLiteral("overwrite"), QStringLiteral("true"));
+    auth::ApiResponse res = api_.postNoBody("/resources/move?" + q.query(QUrl::FullyEncoded).toStdString());
+    DiskResourceResult out;
+    out.success = res.ok();
     out.httpStatus = res.statusCode;
     if (!out.success) {
         out.errorMessage = QString::fromStdString(res.body);
-        ydisquette::logToFile(QStringLiteral("[Sync] delete ") + QString::fromStdString(path) + QStringLiteral(" FAIL: ") + QString::number(out.httpStatus) + QChar(' ') + out.errorMessage);
+        ydisquette::logToFile(QStringLiteral("[Sync] move ") + QString::fromStdString(fromPath)
+            + QStringLiteral(" -> ") + QString::fromStdString(toPath)
+            + QStringLiteral(" FAIL: ") + QString::number(out.httpStatus) + QChar(' ') + out.errorMessage);
     }
     return out;
 }

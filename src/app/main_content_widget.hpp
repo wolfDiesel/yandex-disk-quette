@@ -48,12 +48,15 @@ public:
     QString getLayoutStateJson() const;
     bool saveLayoutStateFromJson(const QString& json);
     QString chooseSyncFolder(const QString& startPath);
+    QString getLastChooseFolderError() const;
+    QString getLastSaveSettingsError() const;
 
 signals:
     void childrenForPathLoaded(const QString& path, const QByteArray& json);
     void contentsForPathLoaded(const QString& path, const QByteArray& json);
     void statusBarUpdated(const QString& json);
     void treeRefreshed();
+    void appendConsoleLog(const QString& line);
     void downloadFinished(bool success, const QString& errorMessage);
     void deleteFinished(bool success, const QString& errorMessage);
 
@@ -139,8 +142,11 @@ private:
     bool skipNextIdleRefresh_ = false;
     QAction* stopSyncAction_ = nullptr;
     QAction* syncAction_ = nullptr;
+    qint64 lastConsoleSpeedEmitTime_ = 0;
     int64_t lastQuotaUsed_ = 0;
     int64_t lastQuotaTotal_ = 0;
+    mutable QString lastChooseFolderError_;
+    mutable QString lastSaveSettingsError_;
 };
 
 }  // namespace ydisquette

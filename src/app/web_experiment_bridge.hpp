@@ -21,6 +21,8 @@ public:
     Q_INVOKABLE QString getLayoutState() const;
     Q_INVOKABLE bool saveLayoutState(const QString& json);
     Q_INVOKABLE QString chooseSyncFolder(const QString& currentPath);
+    Q_INVOKABLE QString getLastChooseFolderError();
+    Q_INVOKABLE QString getLastSaveSettingsError();
     Q_INVOKABLE void startSync();
     Q_INVOKABLE void stopSync();
     Q_INVOKABLE void openSettings();
@@ -32,6 +34,7 @@ public:
 
 signals:
     void treeUpdated();
+    void pathCheckedChanged(const QString& path, bool checked);
     void downloadFinished(bool success, const QString& errorMessage);
     void deleteFinished(bool success, const QString& errorMessage);
 

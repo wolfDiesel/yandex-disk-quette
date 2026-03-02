@@ -11,6 +11,7 @@
 #include <sync/infrastructure/sync_index.hpp>
 #include <sync/domain/sync_status.hpp>
 #include <QApplication>
+#include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFileDialog>
@@ -682,13 +683,44 @@ QString MainContentWidget::getSettingsJson() const {
 
 bool MainContentWidget::saveSettingsFromJson(const QString& json) {
     if (!root_) return false;
+    lastSaveSettingsError_.clear();
     QJsonParseError err;
     QJsonDocument doc = QJsonDocument::fromJson(json.toUtf8(), &err);
     if (!doc.isObject()) return false;
     QJsonObject o = doc.object();
     settings::AppSettings s = root_->getSettingsUseCase().run();
+    std::string currentSyncPath = s.syncPath;
+    std::string proposedSyncPath = currentSyncPath;
     if (o.contains(QStringLiteral("syncPath")))
-        s.syncPath = o.value(QStringLiteral("syncPath")).toString().trimmed().toStdString();
+        proposedSyncPath = o.value(QStringLiteral("syncPath")).toString().trimmed().toStdString();
+
+    if (!proposedSyncPath.empty()) {
+        QString proposedQt = QString::fromStdString(proposedSyncPath).trimmed();
+        QDir proposedDir(proposedQt);
+        if (!proposedDir.exists()) {
+            lastSaveSettingsError_ = QStringLiteral("not_exists");
+            return false;
+        }
+        if (!proposedDir.entryList(QDir::NoDotAndDotDot | QDir::AllEntries).isEmpty()) {
+            lastSaveSettingsError_ = QStringLiteral("not_empty");
+            return false;
+        }
+        if (!currentSyncPath.empty() && proposedSyncPath != currentSyncPath) {
+            QString indexPath = root_->getSyncIndexDbPath();
+            if (!indexPath.isEmpty()) {
+                sync::SyncIndex idx;
+                if (idx.open(indexPath)) {
+                    QString oldRoot = sync::normalizeSyncRoot(QString::fromStdString(currentSyncPath).trimmed());
+                    if (!oldRoot.isEmpty())
+                        idx.removePrefix(oldRoot, QString());
+                    idx.close();
+                }
+            }
+        }
+    }
+
+    if (o.contains(QStringLiteral("syncPath")))
+        s.syncPath = proposedSyncPath;
     if (o.contains(QStringLiteral("maxRetries")))
         s.maxRetries = o.value(QStringLiteral("maxRetries")).toInt(3);
     if (o.contains(QStringLiteral("cloudCheckIntervalSec")))
@@ -755,8 +787,26 @@ bool MainContentWidget::saveLayoutStateFromJson(const QString& json) {
 }
 
 QString MainContentWidget::chooseSyncFolder(const QString& startPath) {
+    lastChooseFolderError_.clear();
     QString dir = QFileDialog::getExistingDirectory(this, tr("Choose sync folder"), startPath.isEmpty() ? QDir::homePath() : startPath);
-    return dir.isEmpty() ? QString() : dir;
+    if (dir.isEmpty()) return QString();
+    if (!QDir(dir).entryList(QDir::NoDotAndDotDot | QDir::AllEntries).isEmpty()) {
+        lastChooseFolderError_ = QStringLiteral("not_empty");
+        return QString();
+    }
+    return dir;
+}
+
+QString MainContentWidget::getLastChooseFolderError() const {
+    QString e = lastChooseFolderError_;
+    lastChooseFolderError_.clear();
+    return e;
+}
+
+QString MainContentWidget::getLastSaveSettingsError() const {
+    QString e = lastSaveSettingsError_;
+    lastSaveSettingsError_.clear();
+    return e;
 }
 
 void MainContentWidget::onSyncClicked() {
@@ -798,8 +848,10 @@ void MainContentWidget::onSyncStatusChanged(sync::SyncStatus status) {
     syncStatus_ = status;
     if (status == sync::SyncStatus::Idle)
         lastSyncSpeed_ = 0;
-    if (status != sync::SyncStatus::Syncing)
+    if (status != sync::SyncStatus::Syncing) {
         lastSyncProgressMessage_.clear();
+        lastConsoleSpeedEmitTime_ = 0;
+    }
     updateSyncIndicator();
     if (status == sync::SyncStatus::Syncing)
         lastSyncError_.clear();
@@ -841,6 +893,7 @@ void MainContentWidget::onSyncError(QString message) {
 
 void MainContentWidget::onSyncProgressMessage(QString message) {
     lastSyncProgressMessage_ = message;
+    emit appendConsoleLog(QStringLiteral("[Sync] ") + message);
     updateSyncIndicator();
 }
 
@@ -931,6 +984,14 @@ void MainContentWidget::tryResumeSyncAfterOnline() {
 void MainContentWidget::onSyncThroughput(qint64 bytesPerSecond) {
     lastSyncSpeed_ = static_cast<double>(bytesPerSecond);
     emitStatusBarUpdate();
+    if (bytesPerSecond > 0) {
+        qint64 now = QDateTime::currentMSecsSinceEpoch();
+        if (now - lastConsoleSpeedEmitTime_ >= 800) {
+            lastConsoleSpeedEmitTime_ = now;
+            double kbit = bytesPerSecond * 8 / 1000.0;
+            emit appendConsoleLog(QStringLiteral("[Sync] speed ") + QString::number(kbit, 'f', 1) + QStringLiteral(" kbit/s"));
+        }
+    }
 }
 
 void MainContentWidget::onCloudCheckTimer() {

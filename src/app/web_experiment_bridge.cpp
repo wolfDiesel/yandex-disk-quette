@@ -17,7 +17,7 @@ QString WebExperimentBridge::getTreeJson() const {
 void WebExperimentBridge::setPathChecked(const QString& path, bool checked) {
     if (!mainContent_) return;
     mainContent_->setPathChecked(path, checked);
-    emit treeUpdated();
+    emit pathCheckedChanged(path, checked);
 }
 
 void WebExperimentBridge::requestChildrenForPath(const QString& path) {
@@ -53,6 +53,16 @@ bool WebExperimentBridge::saveLayoutState(const QString& json) {
 QString WebExperimentBridge::chooseSyncFolder(const QString& currentPath) {
     if (!mainContent_) return QString();
     return mainContent_->chooseSyncFolder(currentPath);
+}
+
+QString WebExperimentBridge::getLastChooseFolderError() {
+    if (!mainContent_) return QString();
+    return mainContent_->getLastChooseFolderError();
+}
+
+QString WebExperimentBridge::getLastSaveSettingsError() {
+    if (!mainContent_) return QString();
+    return mainContent_->getLastSaveSettingsError();
 }
 
 void WebExperimentBridge::startSync() {

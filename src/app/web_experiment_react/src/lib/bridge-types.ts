@@ -44,6 +44,8 @@ export interface BridgeApi {
   getLayoutState: () => Promise<string>
   saveLayoutState: (json: string) => Promise<boolean>
   chooseSyncFolder: (currentPath: string) => Promise<string>
+  getLastChooseFolderError: () => string
+  getLastSaveSettingsError: () => string
   startSync: () => void
   stopSync: () => void
   openSettings: () => void
@@ -54,6 +56,7 @@ export interface BridgeApi {
   quitApplication: () => void
   downloadFinished?: { connect: (cb: (success: boolean, errorMessage: string) => void) => void }
   deleteFinished?: { connect: (cb: (success: boolean, errorMessage: string) => void) => void }
+  pathCheckedChanged?: { connect: (cb: (path: string, checked: boolean) => void) => void }
 }
 
 declare global {

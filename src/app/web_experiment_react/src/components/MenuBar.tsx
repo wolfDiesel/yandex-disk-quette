@@ -15,7 +15,9 @@ export function MenuBar() {
   const bridge = useBridge()
   const setActivePane = useStore((s) => s.setActivePane)
   const syncStatus = useStore((s) => s.statusBar.syncStatus)
+  const syncPath = useStore((s) => s.settingsForm.syncPath)
   const syncing = syncStatus === 'syncing'
+  const hasSyncPath = Boolean(syncPath?.trim())
   const [aboutOpen, setAboutOpen] = useState(false)
   const [aboutInfo, setAboutInfo] = useState<{ appName: string; author: string; githubUrl: string } | null>(null)
 
@@ -51,7 +53,7 @@ export function MenuBar() {
               <Settings className="size-4 mr-2" />
               Настройки…
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => bridge?.startSync?.()} disabled={syncing}>
+            <DropdownMenuItem onClick={() => bridge?.startSync?.()} disabled={syncing || !hasSyncPath}>
               <Play className="size-4 mr-2" />
               Синхронизировать
             </DropdownMenuItem>

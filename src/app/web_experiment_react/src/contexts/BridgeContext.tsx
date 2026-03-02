@@ -15,6 +15,27 @@ export function BridgeProvider({ children }: { children: ReactNode }) {
         const b = ch.objects.bridge
         window.__bridge = b
         setBridge(b)
+        if (typeof b.getSettings === 'function') {
+          b.getSettings().then((json: string) => {
+            try {
+              const data = JSON.parse(json)
+              const store = useStore.getState()
+              store.setSettingsForm({
+                syncPath: data.syncPath ?? '',
+                refreshIntervalSec: data.refreshIntervalSec ?? 60,
+                cloudCheckIntervalSec: data.cloudCheckIntervalSec ?? 30,
+                maxRetries: data.maxRetries ?? 3,
+                hideToTray: !!data.hideToTray,
+                closeToTray: !!data.closeToTray,
+              })
+              if (!data.syncPath || String(data.syncPath).trim() === '') {
+                store.setActivePane('settings')
+              }
+            } catch {
+              // ignore
+            }
+          })
+        }
         if (typeof b.getLayoutState === 'function') {
           b.getLayoutState().then((json) => {
             try {

@@ -1192,10 +1192,6 @@ void MainContentWidget::restoreState(const QByteArray& state) {
 void MainContentWidget::ensureInitialLoad() {
     std::string syncPath = root_->getSettingsUseCase().run().syncPath;
     if (syncPath.empty()) {
-        if (!syncFolderPromptShown_) {
-            syncFolderPromptShown_ = true;
-            QTimer::singleShot(400, this, [this]() { openSettings(); });
-        }
         return;
     }
     QTimer::singleShot(0, this, [this]() { loadAndDisplay(); });

@@ -139,7 +139,6 @@ private:
     bool skipNextIdleRefresh_ = false;
     QAction* stopSyncAction_ = nullptr;
     QAction* syncAction_ = nullptr;
-    bool syncFolderPromptShown_ = false;
     int64_t lastQuotaUsed_ = 0;
     int64_t lastQuotaTotal_ = 0;
 };

@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useBridge } from '@/contexts/BridgeContext'
 import { useStore } from '@/store/useStore'
 import { Button } from '@/components/ui/button'
@@ -14,9 +14,17 @@ import { MenuBar } from './MenuBar'
 export function Layout() {
   const activePane = useStore((s) => s.activePane)
   const setActivePane = useStore((s) => s.setActivePane)
+  const settingsForm = useStore((s) => s.settingsForm)
   const sidebarCollapsed = useStore((s) => s.sidebarCollapsed)
   const setSidebarCollapsed = useStore((s) => s.setSidebarCollapsed)
   const bridge = useBridge()
+  const hasSyncPath = Boolean(settingsForm.syncPath?.trim())
+
+  useEffect(() => {
+    if (!hasSyncPath && activePane === 'nav') {
+      setActivePane('settings')
+    }
+  }, [hasSyncPath, activePane, setActivePane])
 
   const saveLayout = useCallback(() => {
     if (!bridge?.saveLayoutState) return
@@ -56,15 +64,17 @@ export function Layout() {
             <nav className={cn('flex flex-col gap-0.5', sidebarCollapsed ? 'px-1.5' : 'px-2')}>
               <button
                 type="button"
-                onClick={() => setActivePane('nav')}
+                onClick={() => hasSyncPath && setActivePane('nav')}
+                disabled={!hasSyncPath}
                 className={cn(
                   'flex items-center rounded-md text-sm border-l-2 transition-colors',
                   sidebarCollapsed ? 'justify-center p-2.5' : 'gap-3 px-4 py-2.5 text-left',
+                  !hasSyncPath && 'opacity-50 cursor-not-allowed',
                   activePane === 'nav'
                     ? 'bg-primary/10 border-primary text-foreground'
                     : 'border-transparent text-muted-foreground hover:bg-accent hover:text-foreground'
                 )}
-                title="Навигация"
+                title={hasSyncPath ? 'Навигация' : 'Укажите папку синхронизации в настройках'}
               >
                 <FolderOpen className="size-4 shrink-0" aria-hidden />
                 {!sidebarCollapsed && <span>Навигация</span>}

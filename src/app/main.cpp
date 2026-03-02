@@ -203,7 +203,7 @@ int main(int argc, char* argv[]) {
     QAction* quitAction = fileMenu->addAction(QObject::tr("Quit"));
     QObject::connect(quitAction, &QAction::triggered, &app, &QApplication::quit);
     loadConfigIntoApp(root, &mainWindow, mainContent);
-    mainContent->ensureInitialLoad();
+    auto runEnsureInitialLoad = [mainContent]() { mainContent->ensureInitialLoad(); };
 
     QString clientId, clientSecret, redirectUri;
     ydisquette::getBuildTimeOAuthCredentials(&clientId, &clientSecret, &redirectUri);
@@ -222,6 +222,7 @@ int main(int argc, char* argv[]) {
         ydisquette::log(ydisquette::LogLevel::Normal,
                         "[Auth] Existing access token found on startup, skipping login UI.");
         mainWindow.show();
+        runEnsureInitialLoad();
     } else if (hasCredentials) {
         ydisquette::log(ydisquette::LogLevel::Normal,
                         "[Auth] Credentials present and no token, showing login UI.");
@@ -234,7 +235,7 @@ int main(int argc, char* argv[]) {
         login->setAttribute(Qt::WA_DeleteOnClose);
         QObject::connect(handler, &ydisquette::auth::OAuthCallbackSchemeHandler::codeReceived,
                          login, &ydisquette::auth::LoginWidget::onCodeReceived);
-        QObject::connect(login, &ydisquette::auth::LoginWidget::loggedIn, [&]() {
+        QObject::connect(login, &ydisquette::auth::LoginWidget::loggedIn, [&, runEnsureInitialLoad]() {
             saveConfigFromApp(root, &mainWindow, mainContent);
             mainContent->setProperty("skipFirstShow", true);
             mainWindow.show();
@@ -242,6 +243,7 @@ int main(int argc, char* argv[]) {
             mainWindow.show();
             mainWindow.raise();
             mainWindow.activateWindow();
+            runEnsureInitialLoad();
             QTimer::singleShot(300, &app, [login]() {
                 login->hide();
                 login->deleteLater();
@@ -260,6 +262,7 @@ int main(int argc, char* argv[]) {
                             "[Auth] No credentials configured, starting without login UI.");
         }
         mainWindow.show();
+        runEnsureInitialLoad();
     }
 
     QObject::connect(&app, &QApplication::aboutToQuit, [&]() {

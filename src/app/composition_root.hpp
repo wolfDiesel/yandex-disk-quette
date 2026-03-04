@@ -18,6 +18,7 @@
 #include <sync/application/download_file_use_case.hpp>
 #include <sync/infrastructure/disk_resource_client.hpp>
 #include <sync/infrastructure/sync_service.hpp>
+#include <auth/infrastructure/ssl_ignoring_network_access_manager.hpp>
 #include <memory>
 #include <vector>
 
@@ -47,7 +48,7 @@ struct CompositionRoot {
     bool refreshToken();
 
 private:
-    std::unique_ptr<QNetworkAccessManager> nam_;
+    std::unique_ptr<auth::SslIgnoringNetworkAccessManager> nam_;
     std::unique_ptr<auth::TokenStore> tokenStore_;
     std::unique_ptr<auth::OAuthClient> oauthClient_;
     std::unique_ptr<auth::YandexDiskApiClient> apiClient_;

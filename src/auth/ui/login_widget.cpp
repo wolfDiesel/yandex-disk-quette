@@ -15,6 +15,7 @@ struct LoginWidget::Private {
     QString clientId;
     QString clientSecret;
     QString redirectUri;
+    QString lastExchangeError;
     QWebEngineView* webView = nullptr;
     QLabel* statusLabel = nullptr;
     bool exchangeDone = false;
@@ -40,6 +41,9 @@ LoginWidget::LoginWidget(OAuthClient& oauthClient,
     d_->webView->setMinimumHeight(400);
     layout->addWidget(d_->webView, 1);
     connect(d_->webView->page(), &QWebEnginePage::loadFinished, this, &LoginWidget::onLoadFinished);
+    connect(&d_->oauthClient, &OAuthClient::exchangeFailed, this, [this](const QString& msg) {
+        d_->lastExchangeError = msg;
+    });
 }
 
 void LoginWidget::startLogin() {
@@ -59,11 +63,12 @@ void LoginWidget::startLogin() {
 void LoginWidget::onCodeReceived(const QString& code) {
     if (d_->exchangeDone) return;
     d_->exchangeDone = true;
+    d_->lastExchangeError.clear();
     bool ok = d_->oauthClient.exchangeCode(d_->clientId, d_->clientSecret, d_->redirectUri, code);
     if (ok)
         emit loggedIn();
     else
-        emit loginFailed(tr("Failed to get token."));
+        emit loginFailed(d_->lastExchangeError.isEmpty() ? tr("Failed to get token.") : d_->lastExchangeError);
 }
 
 void LoginWidget::onLoadFinished(bool ok) {

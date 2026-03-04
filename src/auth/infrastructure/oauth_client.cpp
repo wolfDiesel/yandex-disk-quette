@@ -35,6 +35,12 @@ bool OAuthClient::exchangeCode(const QString& clientId, const QString& clientSec
 
     const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
     const QByteArray body = reply->readAll();
+    if (reply->error() != QNetworkReply::NoError) {
+        QString err = reply->errorString();
+        reply->deleteLater();
+        emit exchangeFailed(err.isEmpty() ? QStringLiteral("Network error") : err);
+        return false;
+    }
     reply->deleteLater();
 
     if (status != 200) {

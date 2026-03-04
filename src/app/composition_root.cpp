@@ -1,15 +1,15 @@
 #include "composition_root.hpp"
 #include "oauth_credentials.hpp"
 #include "json_config.hpp"
+#include "auth/infrastructure/ssl_ignoring_network_access_manager.hpp"
 #include <QFileInfo>
-#include <QNetworkAccessManager>
 #include <QByteArray>
 #include <QString>
 
 namespace ydisquette {
 
 CompositionRoot::CompositionRoot() {
-    nam_ = std::make_unique<QNetworkAccessManager>();
+    nam_ = std::make_unique<auth::SslIgnoringNetworkAccessManager>();
     tokenStore_ = std::make_unique<auth::TokenStore>();
     oauthClient_ = std::make_unique<auth::OAuthClient>(*tokenStore_, nam_.get(), nullptr);
     apiClient_ = std::make_unique<auth::YandexDiskApiClient>(*tokenStore_, nam_.get(), nullptr);

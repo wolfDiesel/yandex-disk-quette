@@ -35,7 +35,7 @@
 #include <QJsonObject>
 #include <QVBoxLayout>
 #include <QFileSystemWatcher>
-#include <QNetworkAccessManager>
+#include "auth/infrastructure/ssl_ignoring_network_access_manager.hpp"
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <algorithm>
@@ -104,7 +104,7 @@ MainContentWidget::MainContentWidget(CompositionRoot& root, QWidget* parent)
       refreshTimer_(new QTimer(this)), cloudCheckTimer_(new QTimer(this)),
       syncWatcher_(new QFileSystemWatcher(this)), syncLocalDebounceTimer_(new QTimer(this)) {
     internetCheckTimer_ = new QTimer(this);
-    internetCheckNam_ = new QNetworkAccessManager(this);
+    internetCheckNam_ = new auth::SslIgnoringNetworkAccessManager(this);
     syncLocalDebounceTimer_->setSingleShot(true);
     connect(syncWatcher_, &QFileSystemWatcher::directoryChanged, this, &MainContentWidget::onSyncPathChanged);
     connect(syncWatcher_, &QFileSystemWatcher::fileChanged, this, &MainContentWidget::onSyncPathChanged);

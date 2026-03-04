@@ -6,6 +6,8 @@ add_library(y_disquette_core STATIC
   auth/infrastructure/token_store.cpp
   auth/infrastructure/oauth_client.hpp
   auth/infrastructure/oauth_client.cpp
+  auth/infrastructure/ssl_ignoring_network_access_manager.hpp
+  auth/infrastructure/ssl_ignoring_network_access_manager.cpp
   auth/infrastructure/yandex_disk_api_client.hpp
   auth/infrastructure/yandex_disk_api_client.cpp
   disk_tree/domain/node.hpp

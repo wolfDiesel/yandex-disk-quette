@@ -10,7 +10,7 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFileInfo>
-#include <QNetworkAccessManager>
+#include "auth/infrastructure/ssl_ignoring_network_access_manager.hpp"
 #include <QUrlQuery>
 #include <algorithm>
 #include <functional>
@@ -90,7 +90,7 @@ void SyncWorker::doSync(const std::vector<std::string>& selectedPaths, const std
     TokenHolder holder;
     holder.token = accessToken;
 
-    QNetworkAccessManager* nam = new QNetworkAccessManager(this);
+    QNetworkAccessManager* nam = new auth::SslIgnoringNetworkAccessManager(this);
     auth::YandexDiskApiClient* apiClient =
         new auth::YandexDiskApiClient(holder, nam, this);
     QUrlQuery probeQuery;
@@ -280,7 +280,7 @@ void SyncWorker::doSyncLocalToCloud(const std::vector<std::string>& selectedPath
     }
     TokenHolder holder;
     holder.token = accessToken;
-    QNetworkAccessManager* nam = new QNetworkAccessManager(this);
+    QNetworkAccessManager* nam = new auth::SslIgnoringNetworkAccessManager(this);
     auth::YandexDiskApiClient* apiClient = new auth::YandexDiskApiClient(holder, nam, this);
     QUrlQuery probeQuery;
     probeQuery.addQueryItem(QStringLiteral("path"), QStringLiteral("/"));

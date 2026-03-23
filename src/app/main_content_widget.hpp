@@ -4,6 +4,7 @@
 #include <disk_tree/domain/quota.hpp>
 #include <sync/domain/sync_status.hpp>
 #include <sync/infrastructure/sync_index.hpp>
+#include <sync/infrastructure/poll_service.hpp>
 #include <QByteArray>
 #include <QEvent>
 #include <QModelIndex>
@@ -87,7 +88,6 @@ private slots:
     void onContentsContextMenuRequested(const QPoint& pos);
     void onContentsDoubleClicked(const QModelIndex& index);
     void onRefreshTimer();
-    void onCloudCheckTimer();
     void onInternetCheckTimer();
     void onInternetCheckFinished();
     void onSyncThroughput(qint64 bytesPerSecond);
@@ -96,6 +96,12 @@ private slots:
     void onSyncLocalDebounce();
     void onIndexStateLoaded(sync::IndexState state);
     void onPathsCreatedInCloud(const std::vector<std::string>& cloudPaths);
+    void onScanCompleted();
+    void tryStartPoll();
+    void onSyncIndexCheckTimer();
+    void onPollCompleted(int changesCount);
+    void onPollFailed(QString errorMessage);
+    void onPollLog(QString message);
 
 private:
     void setupSyncWatcher();
@@ -123,8 +129,8 @@ private:
     QStandardItemModel* contentsModel_;
     QString currentFolderPath_;
     QTimer* refreshTimer_;
-    QTimer* cloudCheckTimer_;
-    bool cloudCheckTimerStarted_ = false;
+    QTimer* pollTimer_ = nullptr;
+    QTimer* syncIndexCheckTimer_ = nullptr;
     QTimer* internetCheckTimer_ = nullptr;
     QNetworkAccessManager* internetCheckNam_ = nullptr;
     QPointer<QNetworkReply> internetCheckReply_;
@@ -140,9 +146,12 @@ private:
     QString lastSyncProgressMessage_;
     quint64 loadGeneration_ = 0;
     bool skipNextIdleRefresh_ = false;
+    bool scanInProgress_ = false;
     QAction* stopSyncAction_ = nullptr;
     QAction* syncAction_ = nullptr;
     qint64 lastConsoleSpeedEmitTime_ = 0;
+    std::string pendingUncheckPath_;
+    void runUncheckCleanupAndRestart(const std::string& pathStr);
     int64_t lastQuotaUsed_ = 0;
     int64_t lastQuotaTotal_ = 0;
     mutable QString lastChooseFolderError_;

@@ -6,7 +6,7 @@
 #include "auth/ui/login_widget.hpp"
 #include "auth/infrastructure/oauth_callback_scheme_handler.hpp"
 #include "auth/infrastructure/token_store.hpp"
-#include "cloud_path_util.hpp"
+#include "shared/cloud_path_util.hpp"
 #include "json_config.hpp"
 #include "settings/domain/app_settings.hpp"
 #include "shared/app_log.hpp"
@@ -46,8 +46,8 @@ static void loadConfigIntoApp(ydisquette::CompositionRoot& root, ydisquette::Mai
         ydisquette::settings::AppSettings s = root.getSettingsUseCase().run();
         if (!c.syncFolder.isEmpty()) s.syncPath = c.syncFolder.toStdString();
         if (c.maxRetries >= 1 && c.maxRetries <= 100) s.maxRetries = c.maxRetries;
-        if (c.cloudCheckIntervalSec >= 5 && c.cloudCheckIntervalSec <= 3600) s.cloudCheckIntervalSec = c.cloudCheckIntervalSec;
         if (c.refreshIntervalSec >= 5 && c.refreshIntervalSec <= 3600) s.refreshIntervalSec = c.refreshIntervalSec;
+        if (c.pollTimeSec >= 60 && c.pollTimeSec <= 3600) s.pollTimeSec = c.pollTimeSec;
         s.hideToTray = c.hideToTray;
         s.closeToTray = c.closeToTray;
         root.saveSettingsUseCase().run(s);
@@ -76,8 +76,8 @@ static bool saveConfigFromApp(ydisquette::CompositionRoot& root, ydisquette::Mai
     ydisquette::settings::AppSettings s = root.getSettingsUseCase().run();
     c.syncFolder = QString::fromStdString(s.syncPath);
     c.maxRetries = s.maxRetries;
-    c.cloudCheckIntervalSec = s.cloudCheckIntervalSec;
     c.refreshIntervalSec = s.refreshIntervalSec;
+    c.pollTimeSec = s.pollTimeSec;
     c.hideToTray = s.hideToTray;
     c.closeToTray = s.closeToTray;
     c.selectedNodePaths.clear();

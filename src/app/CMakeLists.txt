@@ -29,9 +29,6 @@ target_link_libraries(Y.Disquette PRIVATE
   Qt6::WebChannel
 )
 set_target_properties(Y.Disquette PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-  add_custom_command(TARGET Y.Disquette POST_BUILD COMMAND ${CMAKE_STRIP} $<TARGET_FILE:Y.Disquette>)
-endif()
 
 qt_add_translations(Y.Disquette TS_FILES i18n/y_disquette_ru.ts
   QM_FILES_OUTPUT_VARIABLE _qm_files

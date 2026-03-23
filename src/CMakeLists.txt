@@ -26,16 +26,45 @@ add_library(y_disquette_core STATIC
   disk_tree/infrastructure/api_parse.hpp
   disk_tree/infrastructure/api_parse.cpp
   sync/domain/sync_status.hpp
+  sync/domain/poll_run.hpp
+  sync/domain/last_uploaded_item.hpp
+  sync/domain/trash_item.hpp
+  sync/domain/cloud_datetime.hpp
+  sync/domain/cloud_datetime.cpp
+  sync/domain/cloud_local_compare.hpp
+  sync/domain/cloud_local_compare.cpp
   sync/application/isync_service.hpp
-  sync/infrastructure/mock_sync_service.hpp
+  sync/application/ipoll_run_repository.hpp
+  sync/application/to_delete_batches.hpp
+  sync/application/to_delete_batches.cpp
+  sync/application/sync_path_mapper.hpp
+  sync/application/sync_path_mapper.cpp
+  sync/application/scan_and_fill_index_use_case.hpp
+  sync/application/scan_and_fill_index_use_case.cpp
+  sync/application/sync_cloud_to_local_use_case.hpp
+  sync/application/sync_cloud_to_local_use_case.cpp
+  sync/application/sync_local_to_cloud_use_case.hpp
+  sync/application/sync_local_to_cloud_use_case.cpp
   sync/infrastructure/sync_worker.hpp
   sync/infrastructure/sync_worker.cpp
+  sync/infrastructure/poll_worker.hpp
+  sync/infrastructure/poll_worker.cpp
+  sync/infrastructure/poll_service.hpp
+  sync/infrastructure/poll_service.cpp
   sync/infrastructure/sync_service.hpp
   sync/infrastructure/sync_service.cpp
   sync/infrastructure/sync_index.hpp
   sync/infrastructure/sync_index.cpp
+  sync/infrastructure/sqlite_poll_run_repository.hpp
+  sync/infrastructure/sqlite_poll_run_repository.cpp
+  sync/infrastructure/last_uploaded_parser.hpp
+  sync/infrastructure/last_uploaded_parser.cpp
+  sync/infrastructure/trash_parser.hpp
+  sync/infrastructure/trash_parser.cpp
   sync/infrastructure/disk_resource_client.hpp
   sync/infrastructure/disk_resource_client.cpp
+  sync/infrastructure/sync_infrastructure_factory.hpp
+  sync/infrastructure/sync_infrastructure_factory.cpp
   settings/domain/app_settings.hpp
   settings/application/isettings_store.hpp
   settings/application/iselected_nodes_store.hpp

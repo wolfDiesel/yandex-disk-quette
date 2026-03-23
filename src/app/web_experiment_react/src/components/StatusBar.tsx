@@ -1,5 +1,6 @@
 import { useStore } from '@/store/useStore'
 import { Progress } from '@/components/ui/progress'
+import { Cloud, Monitor, ArrowRight } from 'lucide-react'
 
 const STATUS_TITLES: Record<string, string> = {
   off: 'Синхронизация выключена',
@@ -38,6 +39,17 @@ export function StatusBar() {
   const statusColor = !online ? '#757575' : (STATUS_BG[syncStatus] ?? STATUS_BG.off)
   const statusTitle = !online ? 'Нет интернета' : (STATUS_TITLES[syncStatus] ?? STATUS_TITLES.off)
   const speedStr = syncStatus === 'syncing' && speed > 0 ? formatSpeed(speed) : ''
+  const cloudToLocal = syncMessage.startsWith('cloud→local')
+  const localToCloud = syncMessage.startsWith('local→cloud')
+  const syncPathPart = cloudToLocal
+    ? (syncMessage.startsWith('cloud→local OK ') ? syncMessage.slice(16) : syncMessage.slice(12)).trim()
+    : localToCloud
+      ? (syncMessage.startsWith('local→cloud OK ') ? syncMessage.slice(16) : syncMessage.slice(12)).trim()
+      : syncMessage
+  const syncDirectionIcons =
+    cloudToLocal ? <><Cloud className="size-3.5 shrink-0" /><ArrowRight className="size-3 shrink-0" /><Monitor className="size-3.5 shrink-0" /></>
+    : localToCloud ? <><Monitor className="size-3.5 shrink-0" /><ArrowRight className="size-3 shrink-0" /><Cloud className="size-3.5 shrink-0" /></>
+    : null
 
   return (
     <footer className="shrink-0 flex items-center gap-3 border-t border-border bg-muted/50 px-4 py-1.5 text-xs text-muted-foreground min-h-8">
@@ -64,7 +76,10 @@ export function StatusBar() {
       )}
       {!showQuota && online && <span className="shrink-0">— / —</span>}
       {speedStr && <span className="shrink-0">{speedStr}</span>}
-      <span className="min-w-0 truncate flex-1">{syncMessage}</span>
+      <span className="min-w-0 truncate flex-1 flex items-center gap-1">
+        {syncDirectionIcons}
+        {syncPathPart}
+      </span>
     </footer>
   )
 }

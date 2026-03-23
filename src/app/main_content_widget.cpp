@@ -1,6 +1,6 @@
 #include "main_content_widget.hpp"
 #include "composition_root.hpp"
-#include "cloud_path_util.hpp"
+#include "shared/cloud_path_util.hpp"
 #include "json_config.hpp"
 #include "settings_dialog.hpp"
 #include "settings/domain/app_settings.hpp"
@@ -9,11 +9,13 @@
 #include <sync/infrastructure/disk_resource_client.hpp>
 #include <sync/infrastructure/sync_service.hpp>
 #include <sync/infrastructure/sync_index.hpp>
+#include <sync/domain/sync_file_status.hpp>
 #include <sync/domain/sync_status.hpp>
 #include <QApplication>
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
+#include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QHeaderView>
@@ -53,11 +55,15 @@ static QString utf8(const std::string& s) {
 static Qt::CheckState checkStateForPath(const std::string& nodePath,
                                         const std::vector<std::string>& selectedPaths) {
     const std::string norm = ydisquette::normalizeCloudPath(nodePath);
-    bool inStore = false;
     for (const std::string& s : selectedPaths) {
-        if (ydisquette::normalizeCloudPath(s) == norm) { inStore = true; break; }
+        const std::string sn = ydisquette::normalizeCloudPath(s);
+        if (sn == norm) return Qt::Checked;
+        bool nodeUnderSelected = (norm.size() > sn.size() && sn != "/")
+            && norm.compare(0, sn.size(), sn) == 0
+            && (sn.back() == '/' || norm[sn.size()] == '/');
+        if (sn == "/" && !norm.empty()) nodeUnderSelected = (norm[0] == '/');
+        if (nodeUnderSelected) return Qt::Checked;
     }
-    if (inStore) return Qt::Checked;
     bool hasDescendant = false;
     for (const std::string& s : selectedPaths) {
         const std::string sn = ydisquette::normalizeCloudPath(s);
@@ -70,6 +76,21 @@ static Qt::CheckState checkStateForPath(const std::string& nodePath,
         }
     }
     return hasDescendant ? Qt::PartiallyChecked : Qt::Unchecked;
+}
+
+static bool isPathCheckedForDisplay(const std::string& nodePath,
+                                    const std::vector<std::string>& selectedPaths) {
+    const std::string norm = ydisquette::normalizeCloudPath(nodePath);
+    for (const std::string& s : selectedPaths) {
+        const std::string sn = ydisquette::normalizeCloudPath(s);
+        if (sn == norm) return true;
+        bool under = (norm.size() > sn.size() && sn != "/")
+            && norm.compare(0, sn.size(), sn) == 0
+            && (sn.back() == '/' || norm[sn.size()] == '/');
+        if (sn == "/" && !norm.empty()) under = (norm[0] == '/');
+        if (under) return true;
+    }
+    return false;
 }
 
 static QString openTempBase() {
@@ -94,14 +115,12 @@ QString MainContentWidget::formatBytes(int64_t bytes) {
     return QString::number(bytes / (1024 * 1024 * 1024)) + QStringLiteral(" GB");
 }
 
-static const int kCloudCheckFirstRunDelayMs = 1500;
-
 static const int kInternetCheckIntervalMs = 30000;
 
 MainContentWidget::MainContentWidget(CompositionRoot& root, QWidget* parent)
     : QWidget(parent), root_(&root), ui_(new Ui::MainContentWidget),
       treeModel_(new QStandardItemModel(this)), contentsModel_(new QStandardItemModel(this)),
-      refreshTimer_(new QTimer(this)), cloudCheckTimer_(new QTimer(this)),
+      refreshTimer_(new QTimer(this)),
       syncWatcher_(new QFileSystemWatcher(this)), syncLocalDebounceTimer_(new QTimer(this)) {
     internetCheckTimer_ = new QTimer(this);
     internetCheckNam_ = new auth::SslIgnoringNetworkAccessManager(this);
@@ -155,6 +174,8 @@ MainContentWidget::MainContentWidget(CompositionRoot& root, QWidget* parent)
             this, &MainContentWidget::onIndexStateLoaded);
     connect(&root_->syncService(), &sync::SyncService::pathsCreatedInCloud,
             this, &MainContentWidget::onPathsCreatedInCloud);
+    connect(&root_->syncService(), &sync::SyncService::scanCompleted,
+            this, &MainContentWidget::onScanCompleted);
     connect(&root_->syncService(), &sync::SyncService::syncThroughput,
             this, &MainContentWidget::onSyncThroughput);
     ui_->contentsView_->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -168,9 +189,24 @@ MainContentWidget::MainContentWidget(CompositionRoot& root, QWidget* parent)
     connect(refreshTimer_, &QTimer::timeout, this, &MainContentWidget::onRefreshTimer);
     int refreshSec = root_->getSettingsUseCase().run().refreshIntervalSec;
     refreshTimer_->start((refreshSec >= 5 && refreshSec <= 3600 ? refreshSec : 60) * 1000);
-    connect(cloudCheckTimer_, &QTimer::timeout, this, &MainContentWidget::onCloudCheckTimer);
     connect(internetCheckTimer_, &QTimer::timeout, this, &MainContentWidget::onInternetCheckTimer);
     internetCheckTimer_->start(kInternetCheckIntervalMs);
+    pollTimer_ = new QTimer(this);
+    connect(pollTimer_, &QTimer::timeout, this, &MainContentWidget::tryStartPoll);
+    syncIndexCheckTimer_ = new QTimer(this);
+    connect(syncIndexCheckTimer_, &QTimer::timeout, this, &MainContentWidget::onSyncIndexCheckTimer);
+    connect(&root_->pollService(), &sync::PollService::pollCompleted, this, &MainContentWidget::onPollCompleted);
+    connect(&root_->pollService(), &sync::PollService::pollFailed, this, &MainContentWidget::onPollFailed);
+    connect(&root_->pollService(), &sync::PollService::pollLog, this, &MainContentWidget::onPollLog);
+    connect(&root_->pollService(), &sync::PollService::tokenExpired, this, &MainContentWidget::onTokenExpired);
+    {
+        int pollSec = root_->getSettingsUseCase().run().pollTimeSec;
+        if (pollSec < 60) pollSec = 120;
+        if (pollSec > 3600) pollSec = 3600;
+        pollTimer_->setInterval(pollSec * 1000);
+        pollTimer_->start();
+    }
+    QTimer::singleShot(0, this, &MainContentWidget::tryStartPoll);
     ui_->treeLabel_->hide();
     ui_->quotaProgressBar_->setMinimum(0);
     ui_->quotaProgressBar_->setMaximum(100);
@@ -215,6 +251,25 @@ static void addNewFilesUnderDir(sync::SyncIndex& idx, const QString& syncRoot, c
     }
 }
 
+static void markDeletedLocallyAsToDelete(sync::SyncIndex& idx, const QString& syncRoot,
+                                         const QString& localRoot, const QString& baseRel) {
+    if (baseRel.isEmpty()) {
+        QStringList top = idx.getTopLevelRelativePaths(syncRoot);
+        for (const QString& rel : top) {
+            if (!QFileInfo(localRoot + rel).exists()) {
+                idx.setStatusPrefix(syncRoot, rel, QString::fromUtf8(sync::FileStatus::TO_DELETE));
+            }
+        }
+    } else {
+        QStringList under = idx.getRelativePathsUnderPrefixExcept(syncRoot, baseRel, {});
+        for (const QString& rel : under) {
+            if (!QFileInfo(localRoot + rel).exists()) {
+                idx.setStatusPrefix(syncRoot, rel, QString::fromUtf8(sync::FileStatus::TO_DELETE));
+            }
+        }
+    }
+}
+
 void MainContentWidget::onSyncPathChanged(const QString& path) {
     if (QFileInfo(path).isDir() && !syncWatchedPaths_.contains(path))
         addWatchRecursive(syncWatcher_, &syncWatchedPaths_, path);
@@ -222,13 +277,18 @@ void MainContentWidget::onSyncPathChanged(const QString& path) {
         sync::SyncIndex idx;
         if (idx.open(root_->getSyncIndexDbPath())) {
             QString syncRoot = sync::normalizeSyncRoot(QFileInfo(syncWatcherRoot_).absoluteFilePath());
+            QString localRoot = QDir::cleanPath(syncWatcherRoot_) + QLatin1Char('/');
             QString baseRel = path.mid(syncWatcherRoot_.size());
             while (baseRel.startsWith(QLatin1Char('/'))) baseRel = baseRel.mid(1);
             QFileInfo fi(path);
-            if (fi.isFile() && !baseRel.isEmpty()) {
+            if (!fi.exists()) {
+                if (!baseRel.isEmpty() && idx.hasAnyWithPrefix(syncRoot, baseRel))
+                    idx.setStatusPrefix(syncRoot, baseRel, QString::fromUtf8(sync::FileStatus::TO_DELETE));
+            } else if (fi.isFile() && !baseRel.isEmpty()) {
                 if (!idx.get(syncRoot, baseRel).has_value())
                     idx.upsertNew(syncRoot, baseRel, fi.lastModified().toSecsSinceEpoch(), fi.size());
             } else if (fi.isDir()) {
+                markDeletedLocallyAsToDelete(idx, syncRoot, localRoot, baseRel);
                 addNewFilesUnderDir(idx, syncRoot, path, baseRel);
             }
             idx.close();
@@ -239,10 +299,21 @@ void MainContentWidget::onSyncPathChanged(const QString& path) {
 }
 
 void MainContentWidget::onSyncLocalDebounce() {
-    if (!online_ || syncStatus_ == sync::SyncStatus::Syncing) return;
+    if (!online_ || syncStatus_ == sync::SyncStatus::Syncing || scanInProgress_) return;
     std::vector<std::string> paths = root_->getSelectedPaths();
     auto settings = root_->getSettingsUseCase().run();
     if (paths.empty() || settings.syncPath.empty()) return;
+    QString syncRoot = sync::normalizeSyncRoot(QString::fromStdString(settings.syncPath));
+    if (!syncRoot.isEmpty()) {
+        sync::SyncIndex idx;
+        if (idx.open(root_->getSyncIndexDbPath())) {
+            QStringList newPaths = idx.getRelativePathsWithStatus(syncRoot, QString::fromUtf8(sync::FileStatus::NEW));
+            QStringList toDeletePaths = idx.getRelativePathsWithStatus(syncRoot, QString::fromUtf8(sync::FileStatus::TO_DELETE));
+            idx.close();
+            if (newPaths.isEmpty() && toDeletePaths.isEmpty())
+                return;
+        }
+    }
     auto token = root_->tokenProvider().getAccessToken();
     if (!token || token->empty()) return;
     root_->syncService().startSyncLocalToCloud(paths, settings.syncPath, root_->getSyncIndexDbPath(), settings.maxRetries);
@@ -261,6 +332,15 @@ bool MainContentWidget::eventFilter(QObject* obj, QEvent* event) {
 void MainContentWidget::updateTreeSizeColumnWidth() {
     int w = ui_->treeView_->width();
     ui_->treeView_->header()->resizeSection(1, qBound(30, w / 10, 120));
+}
+
+static void insertPlaceholderRow(QStandardItem* nameItem) {
+    QStandardItem* phName = new QStandardItem(QStringLiteral("…"));
+    phName->setData(true, IsPlaceholderRole);
+    phName->setEditable(false);
+    QStandardItem* phSize = new QStandardItem;
+    phSize->setEditable(false);
+    nameItem->insertRow(0, {phName, phSize});
 }
 
 void MainContentWidget::appendChildrenToRow(QStandardItem* nameItem, const std::string& path) {
@@ -284,8 +364,7 @@ void MainContentWidget::appendChildrenToRowFromData(QStandardItem* nameItem,
         treeModel_->blockSignals(true);
         nameCol->setCheckState(checkStateForPath(c->path, selectedPaths));
         treeModel_->blockSignals(false);
-        nameCol->appendRow({new QStandardItem, new QStandardItem});
-        nameCol->child(0, 0)->setData(true, IsPlaceholderRole);
+        insertPlaceholderRow(nameCol);
         QStandardItem* sizeCol = new QStandardItem;
         sizeCol->setEditable(false);
         nameItem->appendRow({nameCol, sizeCol});
@@ -348,40 +427,90 @@ void MainContentWidget::refreshTreeCheckStatesFromStore() {
     treeModel_->blockSignals(false);
 }
 
-void MainContentWidget::applySelectionChangeSideEffects(const std::string& pathStr, bool nowChecked) {
-    if (nowChecked) {
-        auto settings = root_->getSettingsUseCase().run();
-        auto token = root_->tokenProvider().getAccessToken();
-        if (!settings.syncPath.empty() && token && !token->empty()) {
-            root_->syncService().startSync({pathStr}, settings.syncPath, root_->getSyncIndexDbPath(), settings.maxRetries);
+void MainContentWidget::runUncheckCleanupAndRestart(const std::string& pathStr) {
+    std::string syncPath = root_->getSettingsUseCase().run().syncPath;
+    QString indexPath = root_->getSyncIndexDbPath();
+    if (syncPath.empty() || indexPath.isEmpty()) {
+        pendingUncheckPath_.clear();
+        return;
+    }
+    QString syncPathQt = QString::fromStdString(syncPath).trimmed();
+    QString syncRoot = sync::normalizeSyncRoot(QFileInfo(syncPathQt).absoluteFilePath());
+    QString relUnchecked = ydisquette::cloudPathToRelativeQString(pathStr);
+    if (relUnchecked.isEmpty()) {
+        pendingUncheckPath_.clear();
+        return;
+    }
+    std::vector<std::string> stillSelected = root_->getSelectedPaths();
+    QStringList keepPrefixes;
+    for (const std::string& p : stillSelected) {
+        QString kr = ydisquette::cloudPathToRelativeQString(p);
+        if (!kr.isEmpty()) keepPrefixes.append(kr);
+    }
+    sync::SyncIndex idx;
+    if (idx.open(QFileInfo(indexPath).absoluteFilePath())) {
+        QStringList toRemove = idx.getRelativePathsUnderPrefixExcept(syncRoot, relUnchecked, keepPrefixes);
+        std::sort(toRemove.begin(), toRemove.end(), [](const QString& a, const QString& b) { return a.size() > b.size(); });
+        if (idx.beginTransaction()) {
+            for (const QString& rel : toRemove)
+                idx.remove(syncRoot, rel);
+            idx.commit();
         }
-    } else {
-        std::string syncPath = root_->getSettingsUseCase().run().syncPath;
-        QString indexPath = root_->getSyncIndexDbPath();
-        if (!syncPath.empty() && !indexPath.isEmpty()) {
-            QString syncPathQt = QString::fromStdString(syncPath).trimmed();
-            QString syncRoot = sync::normalizeSyncRoot(QFileInfo(syncPathQt).absoluteFilePath());
-            std::string pathForRel = pathStr;
-            if (pathForRel.size() >= 5 && pathForRel.compare(0, 5, "disk:") == 0)
-                pathForRel = pathForRel.substr(5);
-            QString rel = QString::fromStdString(pathForRel);
-            while (rel.startsWith(QLatin1Char('/')))
-                rel = rel.mid(1);
-            if (!rel.isEmpty()) {
-                sync::SyncIndex idx;
-                if (idx.open(QFileInfo(indexPath).absoluteFilePath()) && idx.beginTransaction()) {
-                    idx.removePrefix(syncRoot, rel);
-                    idx.commit();
-                    idx.close();
-                }
+        idx.close();
+        JsonConfig c = JsonConfig::load();
+        c.selectedNodePaths.clear();
+        for (const std::string& p : root_->getSelectedPaths())
+            c.selectedNodePaths.append(QString::fromStdString(ydisquette::normalizeCloudPath(p)));
+        JsonConfig::save(c);
+        for (const QString& rel : toRemove) {
+            QString localPath = syncRoot + QLatin1Char('/') + rel;
+            QFileInfo fi(localPath);
+            if (fi.exists()) {
+                if (fi.isDir())
+                    QDir(localPath).removeRecursively();
+                else
+                    QFile::remove(localPath);
             }
         }
     }
-    JsonConfig c = JsonConfig::load();
-    c.selectedNodePaths.clear();
-    for (const std::string& p : root_->getSelectedPaths())
-        c.selectedNodePaths.append(QString::fromStdString(ydisquette::normalizeCloudPath(p)));
-    JsonConfig::save(c);
+    pendingUncheckPath_.clear();
+    std::vector<std::string> paths = root_->getSelectedPaths();
+    if (!paths.empty()) {
+        auto settings = root_->getSettingsUseCase().run();
+        auto token = root_->tokenProvider().getAccessToken();
+        if (!settings.syncPath.empty() && token && !token->empty()) {
+            root_->syncService().startSync(paths, settings.syncPath, root_->getSyncIndexDbPath(), settings.maxRetries);
+        }
+    }
+}
+
+void MainContentWidget::applySelectionChangeSideEffects(const std::string& pathStr, bool nowChecked) {
+    if (nowChecked) {
+        root_->syncService().stopSync();
+        auto settings = root_->getSettingsUseCase().run();
+        auto token = root_->tokenProvider().getAccessToken();
+        if (!settings.syncPath.empty() && token && !token->empty()) {
+            std::vector<std::string> paths = root_->getSelectedPaths();
+            if (!paths.empty()) {
+                scanInProgress_ = true;
+                root_->syncService().startScanPathAndFillIndex(paths, settings.syncPath, root_->getSyncIndexDbPath(), settings.maxRetries);
+            }
+        }
+    } else {
+        if (root_->syncService().getStatus() == sync::SyncStatus::Syncing) {
+            pendingUncheckPath_ = pathStr;
+            root_->syncService().stopSync();
+        } else {
+            runUncheckCleanupAndRestart(pathStr);
+        }
+    }
+    if (nowChecked) {
+        JsonConfig c = JsonConfig::load();
+        c.selectedNodePaths.clear();
+        for (const std::string& p : root_->getSelectedPaths())
+            c.selectedNodePaths.append(QString::fromStdString(ydisquette::normalizeCloudPath(p)));
+        JsonConfig::save(c);
+    }
 }
 
 void MainContentWidget::setPathChecked(const QString& path, bool checked) {
@@ -405,7 +534,7 @@ static QJsonArray nodesToJsonArray(const std::vector<std::shared_ptr<disk_tree::
         o.insert(QStringLiteral("name"), utf8(c->name.empty() ? c->path : c->name));
         o.insert(QStringLiteral("path"), utf8(c->path));
         o.insert(QStringLiteral("dir"), true);
-        bool checked = std::find(selectedPaths.begin(), selectedPaths.end(), ydisquette::normalizeCloudPath(c->path)) != selectedPaths.end();
+        bool checked = isPathCheckedForDisplay(c->path, selectedPaths);
         o.insert(QStringLiteral("checked"), checked);
         arr.append(o);
     }
@@ -421,7 +550,7 @@ static QJsonArray contentsToJsonArray(const std::vector<std::shared_ptr<disk_tre
         o.insert(QStringLiteral("path"), utf8(c->path));
         o.insert(QStringLiteral("dir"), c->isDir());
         if (c->isDir()) {
-            bool checked = std::find(selectedPaths.begin(), selectedPaths.end(), ydisquette::normalizeCloudPath(c->path)) != selectedPaths.end();
+            bool checked = isPathCheckedForDisplay(c->path, selectedPaths);
             o.insert(QStringLiteral("checked"), checked);
         } else {
             o.insert(QStringLiteral("size"), static_cast<qint64>(c->size));
@@ -473,6 +602,18 @@ void MainContentWidget::loadAndDisplay(const std::vector<std::string>& ensureSel
 
     ++loadGeneration_;
     const quint64 gen = loadGeneration_;
+    std::vector<std::string> expandedPaths;
+    QStandardItem* rootItem = treeModel_->invisibleRootItem();
+    if (rootItem->rowCount() > 0) {
+        QStandardItem* diskNode = rootItem->child(0, 0);
+        if (diskNode) {
+            for (int i = 0; i < diskNode->rowCount(); ++i) {
+                QStandardItem* ch = diskNode->child(i, 0);
+                if (ch && ui_->treeView_->isExpanded(ch->index()))
+                    expandedPaths.push_back(ydisquette::normalizeCloudPath(ch->data(PathRole).toString().toStdString()));
+            }
+        }
+    }
     std::vector<std::string> ensureNormalized;
     for (const std::string& p : ensureSelectedPaths)
         ensureNormalized.push_back(ydisquette::normalizeCloudPath(p));
@@ -494,10 +635,9 @@ void MainContentWidget::loadAndDisplay(const std::vector<std::string>& ensureSel
         }
         QStandardItem* sizeCol = new QStandardItem;
         sizeCol->setEditable(false);
-        nameCol->appendRow({new QStandardItem, new QStandardItem});
-        nameCol->child(0, 0)->setData(true, IsPlaceholderRole);
+        insertPlaceholderRow(nameCol);
         treeModel_->appendRow({nameCol, sizeCol});
-        root_->treeRepository().getChildrenAsync(rootNode->path, [this, nameCol, gen, ensureNormalized](std::vector<std::shared_ptr<disk_tree::Node>> children) {
+        root_->treeRepository().getChildrenAsync(rootNode->path, [this, nameCol, gen, ensureNormalized, expandedPaths](std::vector<std::shared_ptr<disk_tree::Node>> children) {
             if (loadGeneration_ != gen) return;
             nameCol->removeRow(0);
             appendChildrenToRowFromData(nameCol, children);
@@ -516,14 +656,76 @@ void MainContentWidget::loadAndDisplay(const std::vector<std::string>& ensureSel
                 treeModel_->blockSignals(false);
             }
             ui_->treeView_->expandToDepth(0);
+            QSet<QString> toExpand;
+            for (const std::string& p : expandedPaths)
+                toExpand.insert(QString::fromStdString(p));
+            for (int i = 0; i < nameCol->rowCount(); ++i) {
+                QStandardItem* item = nameCol->child(i, 0);
+                if (!item) continue;
+                QString path = QString::fromStdString(ydisquette::normalizeCloudPath(item->data(PathRole).toString().toStdString()));
+                if (toExpand.contains(path))
+                    ui_->treeView_->expand(item->index());
+            }
             emit treeRefreshed();
         });
     }
     root_->getQuotaUseCase().runAsync([this](disk_tree::Quota q) { updateStatusBar(q); });
-    root_->syncService().startLoadIndexState(root_->getSyncIndexDbPath());
+    QString syncPathQt = QString::fromStdString(root_->getSettingsUseCase().run().syncPath).trimmed();
+    root_->syncService().startLoadIndexState(root_->getSyncIndexDbPath(), syncPathQt);
 }
 
-void MainContentWidget::onIndexStateLoaded(sync::IndexState) {
+void MainContentWidget::onIndexStateLoaded(sync::IndexState state) {
+    if (state.toDownloadCount <= 0 && state.cloudDeletedCount <= 0 && state.toDeleteCount <= 0) return;
+    std::vector<std::string> paths = root_->getSelectedPaths();
+    auto settings = root_->getSettingsUseCase().run();
+    if (paths.empty() || settings.syncPath.empty()) return;
+    if (root_->syncService().getStatus() == sync::SyncStatus::Syncing) return;
+    if (state.toDownloadCount > 0 || state.cloudDeletedCount > 0)
+        root_->syncService().startSync(paths, settings.syncPath, root_->getSyncIndexDbPath(), settings.maxRetries);
+    if (state.toDeleteCount > 0)
+        root_->syncService().startSyncLocalToCloud(paths, settings.syncPath, root_->getSyncIndexDbPath(), settings.maxRetries);
+}
+
+void MainContentWidget::onScanCompleted() {
+    scanInProgress_ = false;
+    std::vector<std::string> paths = root_->getSelectedPaths();
+    auto settings = root_->getSettingsUseCase().run();
+    if (!paths.empty() && !settings.syncPath.empty())
+        root_->syncService().startSync(paths, settings.syncPath, root_->getSyncIndexDbPath(), settings.maxRetries);
+}
+
+void MainContentWidget::onSyncIndexCheckTimer() {
+    if (root_->syncService().getStatus() == sync::SyncStatus::Syncing) return;
+    QString syncPathQt = QString::fromStdString(root_->getSettingsUseCase().run().syncPath).trimmed();
+    if (syncPathQt.isEmpty()) return;
+    root_->syncService().startLoadIndexState(root_->getSyncIndexDbPath(), syncPathQt);
+}
+
+void MainContentWidget::tryStartPoll() {
+    if (root_->syncService().getStatus() == sync::SyncStatus::Syncing) return;
+    if (root_->pollService().getStatus() == sync::PollStatus::Polling) return;
+    ydisquette::settings::AppSettings s = root_->getSettingsUseCase().run();
+    QString syncPath = QString::fromStdString(s.syncPath).trimmed();
+    if (syncPath.isEmpty()) return;
+    QString indexDbPath = root_->getSyncIndexDbPath();
+    if (indexDbPath.isEmpty()) return;
+    root_->pollService().startPoll(syncPath, indexDbPath, s.pollTimeSec, s.maxRetries);
+}
+
+void MainContentWidget::onPollCompleted(int changesCount) {
+    (void)changesCount;
+    QString syncPathQt = QString::fromStdString(root_->getSettingsUseCase().run().syncPath).trimmed();
+    root_->syncService().startLoadIndexState(root_->getSyncIndexDbPath(), syncPathQt);
+    refreshContentsList();
+    emitStatusBarUpdate();
+}
+
+void MainContentWidget::onPollFailed(QString errorMessage) {
+    (void)errorMessage;
+}
+
+void MainContentWidget::onPollLog(QString message) {
+    emit appendConsoleLog(message);
 }
 
 void MainContentWidget::onPathsCreatedInCloud(const std::vector<std::string>& cloudPaths) {
@@ -542,7 +744,8 @@ void MainContentWidget::onPathsCreatedInCloud(const std::vector<std::string>& cl
     JsonConfig::save(c);
     QTimer::singleShot(100, this, [this, cloudPaths]() {
         loadAndDisplay(cloudPaths);
-        root_->syncService().startLoadIndexState(root_->getSyncIndexDbPath());
+        QString syncPathQt = QString::fromStdString(root_->getSettingsUseCase().run().syncPath).trimmed();
+        root_->syncService().startLoadIndexState(root_->getSyncIndexDbPath(), syncPathQt);
         skipNextIdleRefresh_ = true;
         std::vector<std::string> paths = root_->getSelectedPaths();
         auto settings = root_->getSettingsUseCase().run();
@@ -564,7 +767,10 @@ void MainContentWidget::onItemExpanded(const QModelIndex& index) {
     nameItem->removeRow(0);
     const quint64 gen = loadGeneration_;
     root_->treeRepository().getChildrenAsync(path.toStdString(), [this, nameItem, gen](std::vector<std::shared_ptr<disk_tree::Node>> children) {
-        if (loadGeneration_ != gen) return;
+        if (loadGeneration_ != gen) {
+            insertPlaceholderRow(nameItem);
+            return;
+        }
         appendChildrenToRowFromData(nameItem, children);
     });
 }
@@ -585,43 +791,10 @@ void MainContentWidget::onItemChanged(QStandardItem* item) {
         bool checked = (state == Qt::Checked);
         if (inStore != checked) {
             root_->toggleNodeSelectionUseCase().run(pathStr);
-            paths = root_->getSelectedPaths();
-            if (checked) {
-                auto settings = root_->getSettingsUseCase().run();
-                auto token = root_->tokenProvider().getAccessToken();
-                if (!settings.syncPath.empty() && token && !token->empty()) {
-                    root_->syncService().startSync({pathStr}, settings.syncPath, root_->getSyncIndexDbPath(), settings.maxRetries);
-                }
-            } else {
-                std::string syncPath = root_->getSettingsUseCase().run().syncPath;
-                QString indexPath = root_->getSyncIndexDbPath();
-                if (!syncPath.empty() && !indexPath.isEmpty()) {
-                    QString syncPathQt = QString::fromStdString(syncPath).trimmed();
-                    QString syncRoot = sync::normalizeSyncRoot(QFileInfo(syncPathQt).absoluteFilePath());
-                    std::string pathForRel = pathStr;
-                    if (pathForRel.size() >= 5 && pathForRel.compare(0, 5, "disk:") == 0)
-                        pathForRel = pathForRel.substr(5);
-                    QString rel = QString::fromStdString(pathForRel);
-                    while (rel.startsWith(QLatin1Char('/')))
-                        rel = rel.mid(1);
-                    if (!rel.isEmpty()) {
-                        sync::SyncIndex idx;
-                        if (idx.open(QFileInfo(indexPath).absoluteFilePath()) && idx.beginTransaction()) {
-                            idx.removePrefix(syncRoot, rel);
-                            idx.commit();
-                            idx.close();
-                        }
-                    }
-                }
-            }
-            JsonConfig c = JsonConfig::load();
-            c.selectedNodePaths.clear();
-            for (const std::string& p : root_->getSelectedPaths())
-                c.selectedNodePaths.append(QString::fromStdString(ydisquette::normalizeCloudPath(p)));
-            JsonConfig::save(c);
-        } else {
-            paths = root_->getSelectedPaths();
+            refreshTreeCheckStatesFromStore();
+            applySelectionChangeSideEffects(pathStr, checked);
         }
+        paths = root_->getSelectedPaths();
         treeModel_->blockSignals(true);
         item->setCheckState(checkStateForPath(pathStr, paths));
         treeModel_->blockSignals(false);
@@ -650,18 +823,12 @@ void MainContentWidget::openSettings() {
     dlg.exec();
     auto s = root_->getSettingsUseCase().run();
     int refreshSec = (s.refreshIntervalSec >= 5 && s.refreshIntervalSec <= 3600) ? s.refreshIntervalSec : 60;
-    int cloudSec = (s.cloudCheckIntervalSec >= 5 && s.cloudCheckIntervalSec <= 3600) ? s.cloudCheckIntervalSec : 30;
+    int pollSec = (s.pollTimeSec >= 60 && s.pollTimeSec <= 3600) ? s.pollTimeSec : 120;
     refreshTimer_->setInterval(refreshSec * 1000);
-    if (cloudCheckTimerStarted_)
-        cloudCheckTimer_->setInterval(cloudSec * 1000);
+    pollTimer_->setInterval(pollSec * 1000);
     if (!s.syncPath.empty()) {
         loadAndDisplay();
         setupSyncWatcher();
-        if (!cloudCheckTimerStarted_) {
-            cloudCheckTimerStarted_ = true;
-            QTimer::singleShot(kCloudCheckFirstRunDelayMs, this, &MainContentWidget::onCloudCheckTimer);
-            cloudCheckTimer_->start((cloudSec >= 5 && cloudSec <= 3600 ? cloudSec : 30) * 1000);
-        }
     }
 }
 
@@ -674,7 +841,6 @@ QString MainContentWidget::getSettingsJson() const {
     QJsonObject o;
     o.insert(QStringLiteral("syncPath"), QString::fromStdString(s.syncPath));
     o.insert(QStringLiteral("maxRetries"), s.maxRetries);
-    o.insert(QStringLiteral("cloudCheckIntervalSec"), s.cloudCheckIntervalSec);
     o.insert(QStringLiteral("refreshIntervalSec"), s.refreshIntervalSec);
     o.insert(QStringLiteral("hideToTray"), s.hideToTray);
     o.insert(QStringLiteral("closeToTray"), s.closeToTray);
@@ -723,8 +889,6 @@ bool MainContentWidget::saveSettingsFromJson(const QString& json) {
         s.syncPath = proposedSyncPath;
     if (o.contains(QStringLiteral("maxRetries")))
         s.maxRetries = o.value(QStringLiteral("maxRetries")).toInt(3);
-    if (o.contains(QStringLiteral("cloudCheckIntervalSec")))
-        s.cloudCheckIntervalSec = std::clamp(o.value(QStringLiteral("cloudCheckIntervalSec")).toInt(30), kRefreshIntervalMin, kRefreshIntervalMax);
     if (o.contains(QStringLiteral("refreshIntervalSec")))
         s.refreshIntervalSec = std::clamp(o.value(QStringLiteral("refreshIntervalSec")).toInt(60), kRefreshIntervalMin, kRefreshIntervalMax);
     if (o.contains(QStringLiteral("hideToTray")))
@@ -734,24 +898,15 @@ bool MainContentWidget::saveSettingsFromJson(const QString& json) {
     root_->saveSettingsUseCase().run(s);
     JsonConfig c = JsonConfig::load();
     c.syncFolder = QString::fromStdString(s.syncPath);
-    c.cloudCheckIntervalSec = s.cloudCheckIntervalSec;
     c.refreshIntervalSec = s.refreshIntervalSec;
     c.hideToTray = s.hideToTray;
     c.closeToTray = s.closeToTray;
     if (!JsonConfig::save(c)) return false;
     int refreshSec = (s.refreshIntervalSec >= kRefreshIntervalMin && s.refreshIntervalSec <= kRefreshIntervalMax) ? s.refreshIntervalSec : 60;
-    int cloudSec = (s.cloudCheckIntervalSec >= kRefreshIntervalMin && s.cloudCheckIntervalSec <= kRefreshIntervalMax) ? s.cloudCheckIntervalSec : 30;
     refreshTimer_->setInterval(refreshSec * 1000);
-    if (cloudCheckTimerStarted_)
-        cloudCheckTimer_->setInterval(cloudSec * 1000);
     if (!s.syncPath.empty()) {
         loadAndDisplay();
         setupSyncWatcher();
-        if (!cloudCheckTimerStarted_) {
-            cloudCheckTimerStarted_ = true;
-            QTimer::singleShot(kCloudCheckFirstRunDelayMs, this, &MainContentWidget::onCloudCheckTimer);
-            cloudCheckTimer_->start((cloudSec >= kRefreshIntervalMin && cloudSec <= kRefreshIntervalMax ? cloudSec : 30) * 1000);
-        }
     }
     return true;
 }
@@ -855,13 +1010,17 @@ void MainContentWidget::onSyncStatusChanged(sync::SyncStatus status) {
     updateSyncIndicator();
     if (status == sync::SyncStatus::Syncing)
         lastSyncError_.clear();
+    if (status == sync::SyncStatus::Idle && !pendingUncheckPath_.empty()) {
+        runUncheckCleanupAndRestart(pendingUncheckPath_);
+    }
     if (status == sync::SyncStatus::Idle && wasSyncing) {
         if (skipNextIdleRefresh_) {
             skipNextIdleRefresh_ = false;
         } else {
             QTimer::singleShot(100, this, [this]() {
                 loadAndDisplay();
-                root_->syncService().startLoadIndexState(root_->getSyncIndexDbPath());
+                QString syncPathQt = QString::fromStdString(root_->getSettingsUseCase().run().syncPath).trimmed();
+                root_->syncService().startLoadIndexState(root_->getSyncIndexDbPath(), syncPathQt);
             });
         }
     }
@@ -978,7 +1137,7 @@ void MainContentWidget::tryResumeSyncAfterOnline() {
     if (paths.empty() || settings.syncPath.empty()) return;
     auto token = root_->tokenProvider().getAccessToken();
     if (!token || token->empty()) return;
-    root_->syncService().startSyncLocalToCloud(paths, settings.syncPath, root_->getSyncIndexDbPath(), settings.maxRetries);
+    root_->syncService().startSync(paths, settings.syncPath, root_->getSyncIndexDbPath(), settings.maxRetries);
 }
 
 void MainContentWidget::onSyncThroughput(qint64 bytesPerSecond) {
@@ -992,21 +1151,6 @@ void MainContentWidget::onSyncThroughput(qint64 bytesPerSecond) {
             emit appendConsoleLog(QStringLiteral("[Sync] speed ") + QString::number(kbit, 'f', 1) + QStringLiteral(" kbit/s"));
         }
     }
-}
-
-void MainContentWidget::onCloudCheckTimer() {
-    if (!online_) return;
-    setupSyncWatcher();
-    if (syncStatus_ == sync::SyncStatus::Syncing)
-        return;
-    std::vector<std::string> paths = root_->getSelectedPaths();
-    auto settings = root_->getSettingsUseCase().run();
-    if (paths.empty() || settings.syncPath.empty())
-        return;
-    auto token = root_->tokenProvider().getAccessToken();
-    if (!token || token->empty())
-        return;
-    root_->syncService().startSyncLocalToCloud(paths, settings.syncPath, root_->getSyncIndexDbPath(), settings.maxRetries);
 }
 
 void MainContentWidget::navigateTreeToPath(const QString& path) {
@@ -1103,10 +1247,49 @@ void MainContentWidget::updateSyncIndicator() {
                  : syncOn ? tr("Sync on")
                  : tr("Sync off");
     ui_->connectionIndicator_->setToolTip(tip);
-    if (syncing && !lastSyncProgressMessage_.isEmpty())
-        ui_->syncProgressLabel_->setText(lastSyncProgressMessage_);
-    else
+    const int iconSz = qRound(16 * (devicePixelRatioF() > 0 ? devicePixelRatioF() : 1));
+    QIcon cloudIcon = themeIcon(this, {"weather-clouds", "cloud", "folder-remote"}, QStyle::SP_DriveNetIcon);
+    QIcon computerIcon = themeIcon(this, {"computer", "desktop"}, QStyle::SP_ComputerIcon);
+    if (syncing && !lastSyncProgressMessage_.isEmpty()) {
+        const QString& msg = lastSyncProgressMessage_;
+        QString pathPart;
+        bool cloudToLocal = msg.startsWith(QStringLiteral("cloud→local"));
+        bool localToCloud = msg.startsWith(QStringLiteral("local→cloud"));
+        if (msg.startsWith(QStringLiteral("cloud→local OK "))) {
+            pathPart = msg.mid(16).trimmed();
+            ui_->syncProgressIconLeft_->setPixmap(cloudIcon.pixmap(iconSz, iconSz));
+            ui_->syncProgressIconRight_->setPixmap(computerIcon.pixmap(iconSz, iconSz));
+            ui_->syncProgressArrow_->setVisible(true);
+        } else if (msg.startsWith(QStringLiteral("cloud→local "))) {
+            pathPart = msg.mid(12).trimmed();
+            ui_->syncProgressIconLeft_->setPixmap(cloudIcon.pixmap(iconSz, iconSz));
+            ui_->syncProgressIconRight_->setPixmap(computerIcon.pixmap(iconSz, iconSz));
+            ui_->syncProgressArrow_->setVisible(true);
+        } else if (msg.startsWith(QStringLiteral("local→cloud OK "))) {
+            pathPart = msg.mid(16).trimmed();
+            ui_->syncProgressIconLeft_->setPixmap(computerIcon.pixmap(iconSz, iconSz));
+            ui_->syncProgressIconRight_->setPixmap(cloudIcon.pixmap(iconSz, iconSz));
+            ui_->syncProgressArrow_->setVisible(true);
+        } else if (msg.startsWith(QStringLiteral("local→cloud "))) {
+            pathPart = msg.mid(12).trimmed();
+            ui_->syncProgressIconLeft_->setPixmap(computerIcon.pixmap(iconSz, iconSz));
+            ui_->syncProgressIconRight_->setPixmap(cloudIcon.pixmap(iconSz, iconSz));
+            ui_->syncProgressArrow_->setVisible(true);
+        } else {
+            ui_->syncProgressIconLeft_->clear();
+            ui_->syncProgressIconRight_->clear();
+            ui_->syncProgressArrow_->setVisible(false);
+            pathPart = msg;
+        }
+        if (pathPart.isEmpty() && (cloudToLocal || localToCloud))
+            pathPart = msg;
+        ui_->syncProgressLabel_->setText(pathPart);
+    } else {
+        ui_->syncProgressIconLeft_->clear();
+        ui_->syncProgressIconRight_->clear();
+        ui_->syncProgressArrow_->setVisible(false);
         ui_->syncProgressLabel_->clear();
+    }
     if (stopSyncAction_)
         stopSyncAction_->setEnabled(syncing);
     if (syncAction_)
@@ -1251,18 +1434,23 @@ void MainContentWidget::restoreState(const QByteArray& state) {
 }
 
 void MainContentWidget::ensureInitialLoad() {
-    std::string syncPath = root_->getSettingsUseCase().run().syncPath;
+    auto s = root_->getSettingsUseCase().run();
+    int refreshSec = (s.refreshIntervalSec >= 5 && s.refreshIntervalSec <= 3600) ? s.refreshIntervalSec : 60;
+    refreshTimer_->setInterval(refreshSec * 1000);
+    int pollSec = (s.pollTimeSec >= 60 && s.pollTimeSec <= 3600) ? s.pollTimeSec : 120;
+    pollTimer_->setInterval(pollSec * 1000);
+    if (!pollTimer_->isActive())
+        pollTimer_->start();
+    std::string syncPath = s.syncPath;
     if (syncPath.empty()) {
         return;
     }
+    if (syncIndexCheckTimer_ && !syncIndexCheckTimer_->isActive()) {
+        syncIndexCheckTimer_->setInterval(45000);
+        syncIndexCheckTimer_->start();
+    }
     QTimer::singleShot(0, this, [this]() { loadAndDisplay(); });
     QTimer::singleShot(500, this, [this]() { setupSyncWatcher(); });
-    if (!cloudCheckTimerStarted_) {
-        cloudCheckTimerStarted_ = true;
-        QTimer::singleShot(kCloudCheckFirstRunDelayMs, this, &MainContentWidget::onCloudCheckTimer);
-        int cloudSec = root_->getSettingsUseCase().run().cloudCheckIntervalSec;
-        cloudCheckTimer_->start((cloudSec >= 5 && cloudSec <= 3600 ? cloudSec : 30) * 1000);
-    }
 }
 
 void MainContentWidget::showEvent(QShowEvent* event) {

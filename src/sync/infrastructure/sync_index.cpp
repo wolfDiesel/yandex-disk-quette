@@ -8,7 +8,7 @@
 namespace ydisquette {
 namespace sync {
 
-IndexState readIndexState(const QString& dbPath) {
+IndexState readIndexState(const QString& dbPath, const QString& syncRoot) {
     IndexState out;
     if (dbPath.isEmpty()) return out;
     QFileInfo fi(dbPath);
@@ -33,6 +33,35 @@ IndexState readIndexState(const QString& dbPath) {
         }
         if (q.next())
             out.totalEntries = q.value(0).toInt();
+        if (!syncRoot.trimmed().isEmpty()) {
+            QString normRoot = normalizeSyncRoot(syncRoot);
+            if (!normRoot.isEmpty()) {
+                if (q.prepare(QStringLiteral("SELECT COUNT(*) FROM sync_state WHERE sync_root = ? AND status = ?"))) {
+                    q.addBindValue(normRoot);
+                    q.addBindValue(QStringLiteral("TO_DOWNLOAD"));
+                    if (q.exec() && q.next())
+                        out.toDownloadCount = q.value(0).toInt();
+                }
+                if (q.prepare(QStringLiteral("SELECT COUNT(*) FROM sync_state WHERE sync_root = ? AND status = ?"))) {
+                    q.addBindValue(normRoot);
+                    q.addBindValue(QStringLiteral("DOWNLOADING"));
+                    if (q.exec() && q.next())
+                        out.toDownloadCount += q.value(0).toInt();
+                }
+                if (q.prepare(QStringLiteral("SELECT COUNT(*) FROM sync_state WHERE sync_root = ? AND status = ?"))) {
+                    q.addBindValue(normRoot);
+                    q.addBindValue(QStringLiteral("CLOUD_DELETED"));
+                    if (q.exec() && q.next())
+                        out.cloudDeletedCount = q.value(0).toInt();
+                }
+                if (q.prepare(QStringLiteral("SELECT COUNT(*) FROM sync_state WHERE sync_root = ? AND status = ?"))) {
+                    q.addBindValue(normRoot);
+                    q.addBindValue(QStringLiteral("TO_DELETE"));
+                    if (q.exec() && q.next())
+                        out.toDeleteCount = q.value(0).toInt();
+                }
+            }
+        }
         QStringList parts;
         if (q.exec(QStringLiteral("SELECT sync_root, COUNT(*) FROM sync_state GROUP BY sync_root"))) {
             while (q.next())
@@ -101,6 +130,15 @@ bool SyncIndex::open(const QString& dbPath) {
             "PRIMARY KEY (sync_root, relative_path))")))
         return false;
     if (!ensureStatusColumns(q)) return false;
+    if (!q.exec(QStringLiteral(
+            "CREATE TABLE IF NOT EXISTS poll_run ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, started_at INTEGER NOT NULL,"
+            "status TEXT NOT NULL CHECK(status IN ('running','completed','failed','stopped')),"
+            "finished_at INTEGER, changes_count INTEGER NOT NULL DEFAULT 0,"
+            "sync_root TEXT, error_message TEXT)")))
+        return false;
+    if (!q.exec(QStringLiteral("CREATE INDEX IF NOT EXISTS idx_poll_run_started_at ON poll_run(started_at DESC)")))
+        return false;
     return true;
 }
 
@@ -142,6 +180,26 @@ bool SyncIndex::hasAnyWithPrefix(const QString& syncRoot, const QString& relativ
     q.addBindValue(syncRoot);
     q.addBindValue(prefix);
     q.addBindValue(prefix + QLatin1Char('/') + QLatin1Char('%'));
+    return q.exec() && q.next();
+}
+
+bool SyncIndex::hasAnyUnderPrefixWithStatus(const QString& syncRoot, const QString& relativePathPrefix,
+                                           const QStringList& statuses) const {
+    if (connectionName_.isEmpty() || statuses.isEmpty()) return false;
+    QString prefix = normalizeRelativePath(relativePathPrefix);
+    if (prefix.isEmpty()) return false;
+    QString likePrefix = prefix + QLatin1Char('/') + QLatin1Char('%');
+    QString inPlaceholders;
+    for (int i = 0; i < statuses.size(); ++i)
+        inPlaceholders += (i > 0 ? QStringLiteral(",") : QString()) + QStringLiteral("?");
+    QSqlQuery q(queryDb());
+    if (!q.prepare(QStringLiteral("SELECT 1 FROM sync_state WHERE sync_root = ? AND (relative_path = ? OR relative_path LIKE ?) AND status IN (") + inPlaceholders + QStringLiteral(") LIMIT 1")))
+        return false;
+    q.addBindValue(syncRoot);
+    q.addBindValue(prefix);
+    q.addBindValue(likePrefix);
+    for (const QString& s : statuses)
+        q.addBindValue(s);
     return q.exec() && q.next();
 }
 
@@ -190,6 +248,43 @@ bool SyncIndex::setStatus(const QString& syncRoot, const QString& relativePath, 
     return q.exec();
 }
 
+bool SyncIndex::setStatusPrefix(const QString& syncRoot, const QString& relativePathPrefix, const QString& status) {
+    if (connectionName_.isEmpty()) return false;
+    QString prefix = normalizeRelativePath(relativePathPrefix);
+    qint64 now = QDateTime::currentSecsSinceEpoch();
+    QString st = status.isEmpty() ? QStringLiteral("SYNCED") : status;
+    QSqlQuery q(queryDb());
+    if (prefix.isEmpty()) {
+        q.prepare(QStringLiteral("UPDATE sync_state SET status = ?, updated_at = ? WHERE sync_root = ?"));
+        q.addBindValue(st);
+        q.addBindValue(now);
+        q.addBindValue(syncRoot);
+    } else {
+        QString likePrefix = prefix.endsWith(QLatin1Char('/')) ? prefix : prefix + QLatin1Char('/');
+        q.prepare(QStringLiteral(
+                "UPDATE sync_state SET status = ?, updated_at = ? WHERE sync_root = ? AND (relative_path = ? OR relative_path LIKE ?)"));
+        q.addBindValue(st);
+        q.addBindValue(now);
+        q.addBindValue(syncRoot);
+        q.addBindValue(prefix);
+        q.addBindValue(likePrefix + QStringLiteral("%"));
+    }
+    return q.exec();
+}
+
+QStringList SyncIndex::getRelativePathsWithStatus(const QString& syncRoot, const QString& status) const {
+    QStringList out;
+    if (connectionName_.isEmpty() || status.isEmpty()) return out;
+    QSqlQuery q(queryDb());
+    q.prepare(QStringLiteral("SELECT relative_path FROM sync_state WHERE sync_root = ? AND status = ?"));
+    q.addBindValue(syncRoot);
+    q.addBindValue(status);
+    if (!q.exec()) return out;
+    while (q.next())
+        out.append(q.value(0).toString().trimmed());
+    return out;
+}
+
 bool SyncIndex::upsertNew(const QString& syncRoot, const QString& relativePath, qint64 mtimeSec, qint64 size) {
     return set(syncRoot, relativePath, mtimeSec, size, QStringLiteral("NEW"), 0);
 }
@@ -214,6 +309,42 @@ bool SyncIndex::removePrefix(const QString& syncRoot, const QString& relativePat
     q.addBindValue(prefix);
     q.addBindValue(likePrefix + QStringLiteral("%"));
     return q.exec();
+}
+
+QStringList SyncIndex::getRelativePathsUnderPrefixExcept(const QString& syncRoot, const QString& prefixToRemove,
+                                                         const QStringList& keepPrefixes) const {
+    QStringList out;
+    if (connectionName_.isEmpty()) return out;
+    QString prefix = normalizeRelativePath(prefixToRemove);
+    if (prefix.isEmpty()) return out;
+    QString likePrefix = prefix + QLatin1Char('/') + QLatin1Char('%');
+    QString sql = QStringLiteral("SELECT relative_path FROM sync_state WHERE sync_root = ? AND (relative_path = ? OR relative_path LIKE ?)");
+    QVector<QString> keepNorm;
+    for (const QString& k : keepPrefixes) {
+        QString kn = normalizeRelativePath(k);
+        if (!kn.isEmpty()) keepNorm.append(kn);
+    }
+    if (!keepNorm.isEmpty()) {
+        sql += QStringLiteral(" AND NOT (");
+        for (int i = 0; i < keepNorm.size(); ++i) {
+            if (i > 0) sql += QLatin1String(" OR ");
+            sql += QStringLiteral("(relative_path = ? OR relative_path LIKE ?)");
+        }
+        sql += QLatin1Char(')');
+    }
+    QSqlQuery q(queryDb());
+    if (!q.prepare(sql)) return out;
+    q.addBindValue(syncRoot);
+    q.addBindValue(prefix);
+    q.addBindValue(likePrefix);
+    for (const QString& kn : keepNorm) {
+        q.addBindValue(kn);
+        q.addBindValue(kn + QLatin1Char('/') + QLatin1Char('%'));
+    }
+    if (!q.exec()) return out;
+    while (q.next())
+        out.append(q.value(0).toString().trimmed());
+    return out;
 }
 
 QStringList SyncIndex::getTopLevelRelativePaths(const QString& syncRoot) const {

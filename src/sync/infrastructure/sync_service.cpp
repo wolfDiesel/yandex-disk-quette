@@ -17,8 +17,10 @@ SyncService::SyncService(auth::ITokenProvider const& tokenProvider, QObject* par
     thread_ = new QThread(this);
     worker_ = new SyncWorker(nullptr);
     worker_->moveToThread(thread_);
+    connect(this, &SyncService::startScanPathAndFillIndexRequested, worker_, &SyncWorker::doScanPathAndFillIndex, Qt::QueuedConnection);
     connect(this, &SyncService::startSyncRequested, worker_, &SyncWorker::doSync, Qt::QueuedConnection);
     connect(this, &SyncService::startSyncLocalToCloudRequested, worker_, &SyncWorker::doSyncLocalToCloud, Qt::QueuedConnection);
+    connect(worker_, &SyncWorker::scanCompleted, this, &SyncService::onScanCompleted, Qt::QueuedConnection);
     connect(this, &SyncService::loadIndexStateRequested, worker_, &SyncWorker::loadIndexState, Qt::QueuedConnection);
     connect(worker_, &SyncWorker::indexStateLoaded, this, &SyncService::indexStateLoaded, Qt::QueuedConnection);
     connect(worker_, &SyncWorker::pathsCreatedInCloud, this, &SyncService::pathsCreatedInCloud, Qt::QueuedConnection);
@@ -37,6 +39,21 @@ SyncService::~SyncService() {
         thread_->quit();
         thread_->wait(2000);
     }
+}
+
+void SyncService::startScanPathAndFillIndex(const std::vector<std::string>& selectedPaths,
+                                            const std::string& syncPath,
+                                            const QString& indexDbPath,
+                                            int maxRetries) {
+    if (selectedPaths.empty() || syncPath.empty() || indexDbPath.isEmpty()) return;
+    auto token = tokenProvider_.getAccessToken();
+    std::string tokenStr = (token && !token->empty()) ? *token : std::string();
+    if (tokenStr.empty()) return;
+    lastScanPaths_ = selectedPaths;
+    lastScanSyncPath_ = syncPath;
+    lastScanIndexDbPath_ = indexDbPath;
+    lastMaxRetries_ = maxRetries;
+    emit startScanPathAndFillIndexRequested(selectedPaths, syncPath, tokenStr, indexDbPath);
 }
 
 void SyncService::startSync(const std::vector<std::string>& selectedPaths,
@@ -72,8 +89,8 @@ void SyncService::startSyncLocalToCloud(const std::vector<std::string>& selected
     emit startSyncLocalToCloudRequested(selectedPaths, syncPath, tokenStr, indexDbPath, maxRetries);
 }
 
-void SyncService::startLoadIndexState(const QString& indexDbPath) {
-    emit loadIndexStateRequested(indexDbPath);
+void SyncService::startLoadIndexState(const QString& indexDbPath, const QString& syncRoot) {
+    emit loadIndexStateRequested(indexDbPath, syncRoot);
 }
 
 void SyncService::stopSync() {
@@ -88,7 +105,9 @@ SyncStatus SyncService::getStatus() const {
 void SyncService::onLocalToCloudFinished(const std::vector<std::string>& selectedPaths,
                                          const std::string& syncPath,
                                          const std::string& accessToken) {
-    emit startSyncRequested(selectedPaths, syncPath, accessToken, lastIndexDbPath_, lastMaxRetries_);
+    (void)selectedPaths;
+    (void)syncPath;
+    (void)accessToken;
 }
 
 void SyncService::onWorkerStatusChanged(SyncStatus status) {
@@ -111,6 +130,10 @@ void SyncService::onWorkerSyncProgressMessage(QString message) {
 
 void SyncService::onWorkerSyncThroughput(qint64 bytesPerSecond) {
     emit syncThroughput(bytesPerSecond);
+}
+
+void SyncService::onScanCompleted() {
+    emit scanCompleted();
 }
 
 }  // namespace sync

@@ -18,6 +18,7 @@
 #include <sync/application/download_file_use_case.hpp>
 #include <sync/infrastructure/disk_resource_client.hpp>
 #include <sync/infrastructure/sync_service.hpp>
+#include <sync/infrastructure/poll_service.hpp>
 #include <auth/infrastructure/ssl_ignoring_network_access_manager.hpp>
 #include <memory>
 #include <vector>
@@ -44,6 +45,7 @@ struct CompositionRoot {
     sync::DownloadFileUseCase& downloadFileUseCase() { return *downloadFile_; }
     sync::DeleteResourceUseCase& deleteResourceUseCase() { return *deleteResource_; }
     sync::SyncService& syncService() { return *syncService_; }
+    sync::PollService& pollService() { return *pollService_; }
 
     bool refreshToken();
 
@@ -65,6 +67,7 @@ private:
     std::unique_ptr<sync::DownloadFileUseCase> downloadFile_;
     std::unique_ptr<sync::DeleteResourceUseCase> deleteResource_;
     std::unique_ptr<sync::SyncService> syncService_;
+    std::unique_ptr<sync::PollService> pollService_;
 };
 
 }  // namespace ydisquette

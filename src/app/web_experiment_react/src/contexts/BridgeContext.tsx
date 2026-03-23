@@ -23,7 +23,6 @@ export function BridgeProvider({ children }: { children: ReactNode }) {
               store.setSettingsForm({
                 syncPath: data.syncPath ?? '',
                 refreshIntervalSec: data.refreshIntervalSec ?? 60,
-                cloudCheckIntervalSec: data.cloudCheckIntervalSec ?? 30,
                 maxRetries: data.maxRetries ?? 3,
                 hideToTray: !!data.hideToTray,
                 closeToTray: !!data.closeToTray,

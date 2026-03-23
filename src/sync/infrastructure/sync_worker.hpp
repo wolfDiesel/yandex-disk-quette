@@ -16,14 +16,17 @@ public:
     explicit SyncWorker(QObject* parent = nullptr);
 
 public slots:
+    void doScanPathAndFillIndex(const std::vector<std::string>& selectedPaths, const std::string& syncPath,
+                                const std::string& accessToken, const QString& indexDbPath);
     void doSync(const std::vector<std::string>& selectedPaths, const std::string& syncPath,
                const std::string& accessToken, const QString& indexDbPath = QString(), int maxRetries = 3);
     void doSyncLocalToCloud(const std::vector<std::string>& selectedPaths, const std::string& syncPath,
                             const std::string& accessToken, const QString& indexDbPath, int maxRetries = 3);
-    void loadIndexState(const QString& indexDbPath);
+    void loadIndexState(const QString& indexDbPath, const QString& syncRoot = QString());
     void requestStop();
 
 signals:
+    void scanCompleted();
     void statusChanged(SyncStatus status);
     void tokenExpired();
     void syncError(QString message);

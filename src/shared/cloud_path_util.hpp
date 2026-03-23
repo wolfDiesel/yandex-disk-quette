@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QString>
 #include <string>
 
 namespace ydisquette {
@@ -14,6 +15,18 @@ inline std::string normalizeCloudPath(std::string p) {
     if (!p.empty() && p[0] != '/')
         p = "/" + p;
     return p;
+}
+
+inline std::string cloudPathToRelative(std::string cloudPath) {
+    if (cloudPath.size() >= 5 && cloudPath.compare(0, 5, "disk:") == 0)
+        cloudPath = cloudPath.substr(5);
+    while (!cloudPath.empty() && cloudPath[0] == '/')
+        cloudPath = cloudPath.substr(1);
+    return cloudPath;
+}
+
+inline QString cloudPathToRelativeQString(const std::string& cloudPath) {
+    return QString::fromStdString(cloudPathToRelative(cloudPath));
 }
 
 inline bool isValidCloudPath(const std::string& path) {

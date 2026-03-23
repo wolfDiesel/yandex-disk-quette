@@ -4,7 +4,6 @@ function getSettingsFormEls() {
   return {
     syncPath: document.getElementById('settings-sync-path'),
     refreshSec: document.getElementById('settings-refresh-sec'),
-    cloudSec: document.getElementById('settings-cloud-sec'),
     maxRetries: document.getElementById('settings-max-retries'),
     hideToTray: document.getElementById('settings-hide-tray'),
     closeToTray: document.getElementById('settings-close-tray')
@@ -16,7 +15,6 @@ function fillForm(data) {
   if (!els.syncPath) return;
   if (data.syncPath !== undefined) els.syncPath.value = data.syncPath || '';
   if (data.refreshIntervalSec !== undefined) els.refreshSec.value = data.refreshIntervalSec;
-  if (data.cloudCheckIntervalSec !== undefined) els.cloudSec.value = data.cloudCheckIntervalSec;
   if (data.maxRetries !== undefined) els.maxRetries.value = data.maxRetries;
   if (data.hideToTray !== undefined) els.hideToTray.checked = data.hideToTray;
   if (data.closeToTray !== undefined) els.closeToTray.checked = data.closeToTray;
@@ -28,7 +26,6 @@ function readForm() {
   return {
     syncPath: els.syncPath.value.trim(),
     refreshIntervalSec: parseInt(els.refreshSec.value, 10) || 60,
-    cloudCheckIntervalSec: parseInt(els.cloudSec.value, 10) || 30,
     maxRetries: parseInt(els.maxRetries.value, 10) || 3,
     hideToTray: els.hideToTray.checked,
     closeToTray: els.closeToTray.checked

@@ -16,8 +16,8 @@ TEST_CASE("JsonConfig save and load round-trip in temp dir") {
     JsonConfig c;
     c.syncFolder = QStringLiteral("/home/user/Sync");
     c.maxRetries = 5;
-    c.cloudCheckIntervalSec = 45;
     c.refreshIntervalSec = 120;
+    c.pollTimeSec = 180;
     c.selectedNodePaths = { QStringLiteral("/Disk/Apps"), QStringLiteral("/Disk/Docs") };
 
     JsonConfig::saveToPath(configPath, c);
@@ -25,8 +25,8 @@ TEST_CASE("JsonConfig save and load round-trip in temp dir") {
 
     REQUIRE(loaded.syncFolder == c.syncFolder);
     REQUIRE(loaded.maxRetries == c.maxRetries);
-    REQUIRE(loaded.cloudCheckIntervalSec == c.cloudCheckIntervalSec);
     REQUIRE(loaded.refreshIntervalSec == c.refreshIntervalSec);
+    REQUIRE(loaded.pollTimeSec == c.pollTimeSec);
     REQUIRE(loaded.selectedNodePaths.size() == 2u);
     REQUIRE(loaded.selectedNodePaths.at(0) == QStringLiteral("/Disk/Apps"));
     REQUIRE(loaded.selectedNodePaths.at(1) == QStringLiteral("/Disk/Docs"));
@@ -45,8 +45,8 @@ TEST_CASE("JsonConfig load missing file returns defaults") {
     REQUIRE(loaded.syncFolder.isEmpty());
     REQUIRE(loaded.selectedNodePaths.isEmpty());
     REQUIRE(loaded.maxRetries == 3);
-    REQUIRE(loaded.cloudCheckIntervalSec == 30);
     REQUIRE(loaded.refreshIntervalSec == 60);
+    REQUIRE(loaded.pollTimeSec == 120);
 }
 
 TEST_CASE("JsonConfig load invalid JSON returns defaults") {

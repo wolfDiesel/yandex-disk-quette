@@ -25,7 +25,6 @@ export function SettingsPanel() {
         setSettingsForm({
           syncPath,
           refreshIntervalSec: data.refreshIntervalSec ?? 60,
-          cloudCheckIntervalSec: data.cloudCheckIntervalSec ?? 30,
           maxRetries: data.maxRetries ?? 3,
           hideToTray: !!data.hideToTray,
           closeToTray: !!data.closeToTray,
@@ -103,31 +102,17 @@ export function SettingsPanel() {
               </Button>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="settings-refresh-sec">Интервал обновления (сек)</Label>
-              <Input
-                id="settings-refresh-sec"
-                type="number"
-                min={5}
-                max={3600}
-                value={settingsForm.refreshIntervalSec}
-                onChange={(e) => setSettingsForm({ refreshIntervalSec: parseInt(e.target.value, 10) || 60 })}
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="settings-cloud-sec">Проверка облака (сек)</Label>
-              <Input
-                id="settings-cloud-sec"
-                type="number"
-                min={5}
-                max={3600}
-                value={settingsForm.cloudCheckIntervalSec}
-                onChange={(e) => setSettingsForm({ cloudCheckIntervalSec: parseInt(e.target.value, 10) || 30 })}
-                className="mt-1"
-              />
-            </div>
+          <div>
+            <Label htmlFor="settings-refresh-sec">Интервал обновления (сек)</Label>
+            <Input
+              id="settings-refresh-sec"
+              type="number"
+              min={5}
+              max={3600}
+              value={settingsForm.refreshIntervalSec}
+              onChange={(e) => setSettingsForm({ refreshIntervalSec: parseInt(e.target.value, 10) || 60 })}
+              className="mt-1"
+            />
           </div>
           <div>
             <Label htmlFor="settings-max-retries">Повторы при ошибке</Label>

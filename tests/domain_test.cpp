@@ -45,4 +45,5 @@ TEST_CASE("SyncStatus is enum") {
 TEST_CASE("AppSettings default") {
     settings::AppSettings s;
     REQUIRE(s.syncPath.empty());
+    REQUIRE(s.pollTimeSec == 120);
 }

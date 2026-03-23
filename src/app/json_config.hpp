@@ -18,8 +18,8 @@ struct JsonConfig {
     QByteArray splitterState;
     QString syncFolder;
     int maxRetries = 3;
-    int cloudCheckIntervalSec = 30;
     int refreshIntervalSec = 60;
+    int pollTimeSec = 120;
     bool hideToTray = true;
     bool closeToTray = true;
     QStringList selectedNodePaths;

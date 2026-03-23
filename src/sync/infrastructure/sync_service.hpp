@@ -27,6 +27,10 @@ public:
                    const std::string& syncPath,
                    const QString& indexDbPath = QString(),
                    int maxRetries = 3) override;
+    void startScanPathAndFillIndex(const std::vector<std::string>& selectedPaths,
+                                   const std::string& syncPath,
+                                   const QString& indexDbPath,
+                                   int maxRetries = 3);
     void startSyncLocalToCloud(const std::vector<std::string>& selectedPaths,
                                const std::string& syncPath,
                                const QString& indexDbPath,
@@ -34,10 +38,14 @@ public:
     void stopSync() override;
     SyncStatus getStatus() const override;
 
-    void startLoadIndexState(const QString& indexDbPath);
+    void startLoadIndexState(const QString& indexDbPath, const QString& syncRoot = QString());
 
 signals:
-    void loadIndexStateRequested(const QString& indexDbPath);
+    void loadIndexStateRequested(const QString& indexDbPath, const QString& syncRoot);
+    void startScanPathAndFillIndexRequested(const std::vector<std::string>& selectedPaths,
+                                           const std::string& syncPath,
+                                           const std::string& accessToken,
+                                           const QString& indexDbPath);
     void startSyncRequested(const std::vector<std::string>& selectedPaths,
                             const std::string& syncPath,
                             const std::string& accessToken,
@@ -56,8 +64,10 @@ signals:
     void indexStateLoaded(IndexState state);
     void pathsCreatedInCloud(const std::vector<std::string>& cloudPaths);
     void stopRequested();
+    void scanCompleted();
 
 private slots:
+    void onScanCompleted();
     void onWorkerStatusChanged(SyncStatus status);
     void onWorkerTokenExpired();
     void onWorkerSyncError(QString message);
@@ -71,6 +81,9 @@ private:
     auth::ITokenProvider const& tokenProvider_;
     QString lastIndexDbPath_;
     int lastMaxRetries_ = 3;
+    std::vector<std::string> lastScanPaths_;
+    std::string lastScanSyncPath_;
+    QString lastScanIndexDbPath_;
     QThread* thread_ = nullptr;
     SyncWorker* worker_ = nullptr;
     SyncStatus status_{SyncStatus::Idle};

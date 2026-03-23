@@ -27,6 +27,7 @@ CompositionRoot::CompositionRoot() {
     downloadFile_ = std::make_unique<sync::DownloadFileUseCase>(*diskResourceClient_);
     deleteResource_ = std::make_unique<sync::DeleteResourceUseCase>(*diskResourceClient_);
     syncService_ = std::make_unique<sync::SyncService>(*tokenStore_);
+    pollService_ = std::make_unique<sync::PollService>(*tokenStore_);
 }
 
 QString CompositionRoot::getSyncIndexDbPath() const {

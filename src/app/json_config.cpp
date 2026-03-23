@@ -22,6 +22,8 @@ QString JsonConfig::syncIndexDbPath() {
     return QFileInfo(configPath()).absolutePath() + QStringLiteral("/sync_index.db");
 }
 
+static bool saveToFile(const QString& path, const JsonConfig& c);
+
 static JsonConfig loadFromFile(const QString& path) {
     JsonConfig c;
     QFile f(path);
@@ -50,14 +52,18 @@ static JsonConfig loadFromFile(const QString& path) {
     c.syncFolder = o.value(QStringLiteral("sync_folder")).toString();
     int mr = o.value(QStringLiteral("sync_max_retries")).toInt(3);
     c.maxRetries = (mr > 0 && mr <= 100) ? mr : 3;
-    int cc = o.value(QStringLiteral("cloud_check_interval_sec")).toInt(30);
-    c.cloudCheckIntervalSec = (cc >= 5 && cc <= 3600) ? cc : 30;
     int rr = o.value(QStringLiteral("refresh_interval_sec")).toInt(60);
     c.refreshIntervalSec = (rr >= 5 && rr <= 3600) ? rr : 60;
+    int pt = o.value(QStringLiteral("poll_time_sec")).toInt(120);
+    c.pollTimeSec = (pt >= 60 && pt <= 3600) ? pt : 120;
     c.hideToTray = o.value(QStringLiteral("hide_to_tray")).toBool(true);
     c.closeToTray = o.value(QStringLiteral("close_to_tray")).toBool(true);
     for (const QJsonValue& v : o.value(QStringLiteral("selected_node_paths")).toArray())
         c.selectedNodePaths.append(v.toString());
+    if (c.pollTimeSec < 60) {
+        c.pollTimeSec = 60;
+        saveToFile(path, c);
+    }
     return c;
 }
 
@@ -80,8 +86,8 @@ static bool saveToFile(const QString& path, const JsonConfig& c) {
     o.insert(QStringLiteral("splitter_state"), QString::fromUtf8(c.splitterState.toBase64()));
     o.insert(QStringLiteral("sync_folder"), c.syncFolder);
     o.insert(QStringLiteral("sync_max_retries"), c.maxRetries);
-    o.insert(QStringLiteral("cloud_check_interval_sec"), c.cloudCheckIntervalSec);
     o.insert(QStringLiteral("refresh_interval_sec"), c.refreshIntervalSec);
+    o.insert(QStringLiteral("poll_time_sec"), c.pollTimeSec);
     o.insert(QStringLiteral("hide_to_tray"), c.hideToTray);
     o.insert(QStringLiteral("close_to_tray"), c.closeToTray);
     QJsonArray arr;

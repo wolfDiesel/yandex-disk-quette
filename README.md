@@ -34,4 +34,4 @@ Version is set in `CMakeLists.txt` (`project(Y.Disquette VERSION 0.1.0)`) and in
 
 ## Plan
 
-See the [plan/](plan/) directory.
+См. каталог [plan/](plan/): мастер-план, этапы, решения, ТЗ и план поллинга.

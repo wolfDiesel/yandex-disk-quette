@@ -122,3 +122,30 @@ TEST_CASE("SyncIndex normalizes relative_path, no duplicates") {
     index.commit();
     index.close();
 }
+
+TEST_CASE("SyncIndex getRelativePathsWithStatus and setStatusPrefix TO_DELETE") {
+    int argc = 0;
+    QCoreApplication app(argc, nullptr);
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    QString dbPath = dir.filePath(QStringLiteral("sync_index.db"));
+    SyncIndex index;
+    REQUIRE(index.open(dbPath));
+    REQUIRE(index.beginTransaction());
+    index.set(QStringLiteral("/home/sync"), QStringLiteral("Photos/a.jpg"), 1, 10);
+    index.set(QStringLiteral("/home/sync"), QStringLiteral("Photos/2024/b.jpg"), 2, 20);
+    index.set(QStringLiteral("/home/sync"), QStringLiteral("Docs/readme.txt"), 3, 30);
+    index.commit();
+    REQUIRE(index.getRelativePathsWithStatus(QStringLiteral("/home/sync"), QString::fromUtf8(FileStatus::TO_DELETE)).isEmpty());
+    REQUIRE(index.setStatusPrefix(QStringLiteral("/home/sync"), QStringLiteral("Photos"), QString::fromUtf8(FileStatus::TO_DELETE)));
+    QStringList toDel = index.getRelativePathsWithStatus(QStringLiteral("/home/sync"), QString::fromUtf8(FileStatus::TO_DELETE));
+    REQUIRE(toDel.size() == 2);
+    REQUIRE(toDel.contains(QStringLiteral("Photos/a.jpg")));
+    REQUIRE(toDel.contains(QStringLiteral("Photos/2024/b.jpg")));
+    REQUIRE(index.get(QStringLiteral("/home/sync"), QStringLiteral("Docs/readme.txt"))->status == QLatin1String(FileStatus::SYNCED));
+    REQUIRE(index.setStatus(QStringLiteral("/home/sync"), QStringLiteral("Docs/readme.txt"), QString::fromUtf8(FileStatus::TO_DELETE), 0));
+    toDel = index.getRelativePathsWithStatus(QStringLiteral("/home/sync"), QString::fromUtf8(FileStatus::TO_DELETE));
+    REQUIRE(toDel.size() == 3);
+    index.commit();
+    index.close();
+}

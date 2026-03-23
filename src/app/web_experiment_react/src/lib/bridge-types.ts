@@ -28,7 +28,6 @@ export interface StatusBarState {
 export interface SettingsForm {
   syncPath: string
   refreshIntervalSec: number
-  cloudCheckIntervalSec: number
   maxRetries: number
   hideToTray: boolean
   closeToTray: boolean

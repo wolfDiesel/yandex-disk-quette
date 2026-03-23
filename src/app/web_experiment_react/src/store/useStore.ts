@@ -28,7 +28,6 @@ function setCheckedAtPath(nodes: TreeNode[], path: string, checked: boolean): Tr
 const defaultSettings: SettingsForm = {
   syncPath: '',
   refreshIntervalSec: 60,
-  cloudCheckIntervalSec: 30,
   maxRetries: 3,
   hideToTray: false,
   closeToTray: false,
